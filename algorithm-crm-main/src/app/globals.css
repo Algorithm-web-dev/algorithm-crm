@@ -1,0 +1,93 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+:root {
+  /* Algorithm brand tokens */
+  --color-dark-bg: #05070b;
+  --color-dark-bg2: #0f1520;
+  --color-dark-bg-light: #172032;
+  --color-dark-bg-lighter: #1e293b;
+  --color-dark-card: #1e293b;
+  --color-dark-card-hover: #263348;
+  --color-dark-text: #f0f2f7;
+  --color-dark-text-sub: #b8c0d4;
+  --color-dark-text-muted: #8a94b0;
+
+  --color-accent: #4f8cff;
+  --color-accent-glow: rgba(79, 140, 255, 0.12);
+  --color-accent2: #00e0a0;
+  --color-accent2-glow: rgba(0, 224, 160, 0.1);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  background: var(--color-dark-bg);
+  color: var(--color-dark-text);
+  font-family: 'Space Grotesk', -apple-system, BlinkMacSystemFont, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+input,
+textarea,
+select,
+button {
+  font-family: inherit;
+  color: inherit;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  outline: none;
+}
+
+button {
+  cursor: pointer;
+  border: none;
+  background: none;
+}
+
+/* Reusable brand classes */
+.gradient-text {
+  background: linear-gradient(135deg, #4f8cff 0%, #00e0a0 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.bg-gradient {
+  background: linear-gradient(135deg, #4f8cff 0%, #00e0a0 100%);
+}
+
+.section-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--color-accent);
+}
+
+.mono-tag {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+
+/* Scrollbars */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: var(--color-dark-bg); }
+::-webkit-scrollbar-thumb { background: var(--color-dark-card-hover); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--color-accent); }
