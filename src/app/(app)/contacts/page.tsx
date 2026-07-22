@@ -13,12 +13,10 @@ export default async function ContactsPage() {
   const { data: contacts } = await supabase
     .from('contacts')
     .select('*')
-    .eq('owner_id', user.id)
     .order('created_at', { ascending: false });
   const { data: companies } = await supabase
     .from('companies')
-    .select('*')
-    .eq('owner_id', user.id);
+    .select('*');
 
   const cMap = new Map((companies as Company[] ?? []).map((c) => [c.id, c]));
 

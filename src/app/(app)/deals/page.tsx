@@ -16,11 +16,10 @@ export default async function DealsPage() {
       supabase
         .from('deals')
         .select('*')
-        .eq('owner_id', user.id)
         .order('priority', { ascending: true })
         .order('created_at', { ascending: false }),
-      supabase.from('contacts').select('*').eq('owner_id', user.id),
-      supabase.from('companies').select('*').eq('owner_id', user.id),
+      supabase.from('contacts').select('*'),
+      supabase.from('companies').select('*'),
       supabase.from('profiles').select('*').eq('id', user.id).single(),
     ]);
 

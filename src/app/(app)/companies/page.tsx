@@ -12,9 +12,9 @@ export default async function CompaniesPage() {
   if (!user) return null;
 
   const [{ data: companies }, { data: contacts }, { data: deals }] = await Promise.all([
-    supabase.from('companies').select('*').eq('owner_id', user.id).order('created_at', { ascending: false }),
-    supabase.from('contacts').select('*').eq('owner_id', user.id),
-    supabase.from('deals').select('*').eq('owner_id', user.id),
+    supabase.from('companies').select('*').order('created_at', { ascending: false }),
+    supabase.from('contacts').select('*'),
+    supabase.from('deals').select('*'),
   ]);
 
   const contactsByCompany = new Map<string, number>();
