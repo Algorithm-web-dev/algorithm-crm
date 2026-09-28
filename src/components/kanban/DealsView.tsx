@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   DndContext,
   DragOverlay,
@@ -26,6 +27,7 @@ import {
 } from '@/types';
 import { createClient } from '@/lib/supabase/client';
 import KanbanColumn from './KanbanColumn';
+import LostColumn from './LostColumn';
 import DealCard from './DealCard';
 import DealModal from '@/components/forms/DealModal';
 import PromoteModal from '@/components/forms/PromoteModal';
@@ -37,15 +39,30 @@ interface Props {
   contacts: Contact[];
   companies: Company[];
   profile: Profile;
+  profiles: Profile[];
+  currentUserId: string;
+  openDealId?: string;
 }
 
-export default function DealsView({ initialDeals, contacts: initialContacts, companies: initialCompanies, profile }: Props) {
+export default function DealsView({
+  initialDeals,
+  contacts: initialContacts,
+  companies: initialCompanies,
+  profile,
+  profiles,
+  currentUserId,
+  openDealId,
+}: Props) {
+  const router = useRouter();
   const [deals, setDeals] = useState<Deal[]>(initialDeals);
   const [contacts, setContacts] = useState<Contact[]>(initialContacts);
   const [companies, setCompanies] = useState<Company[]>(initialCompanies);
 
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
-  const [editingDeal, setEditingDeal] = useState<Deal | null>(null);
+  // Opened via /deals?deal=<id> (e.g. from a notification)
+  const [editingDeal, setEditingDeal] = useState<Deal | null>(
+    () => (openDealId && initialDeals.find((d) => d.id === openDealId)) || null,
+  );
   const [creating, setCreating] = useState(false);
   const [promoting, setPromoting] = useState<{ deal: Deal; newStage: DealStageId } | null>(null);
   const [marking_lost, setMarkingLost] = useState<Deal | null>(null);
@@ -83,15 +100,16 @@ export default function DealsView({ initialDeals, contacts: initialContacts, com
     const deal = deals.find((d) => d.id === dealId);
     if (!deal || deal.deal_stage === newStage) return;
 
-    // Promotion: early → not early, and no linked contact yet
-    if (isEarlyStage(deal.deal_stage) && !isEarlyStage(newStage) && !deal.primary_contact_id) {
-      setPromoting({ deal, newStage });
+    // Lost requires a reason — checked before promotion so a lead can be
+    // closed out without first creating Contact/Company records.
+    if (newStage === 'lost') {
+      setMarkingLost(deal);
       return;
     }
 
-    // Lost requires a reason
-    if (newStage === 'lost') {
-      setMarkingLost(deal);
+    // Promotion: early → not early, and no linked contact yet
+    if (isEarlyStage(deal.deal_stage) && !isEarlyStage(newStage) && !deal.primary_contact_id) {
+      setPromoting({ deal, newStage });
       return;
     }
 
@@ -151,6 +169,18 @@ export default function DealsView({ initialDeals, contacts: initialContacts, com
           <span className="text-xs text-text-muted">Your unified pipeline</span>
         </div>
         <div className="ml-auto flex items-center gap-2">
+          <a
+            href="/api/export/deals"
+            title="Download all deals (value, owner, probability) as a CSV that opens in Excel"
+            className="px-4 py-1.5 bg-deep-navy border border-white/10 text-text-primary font-semibold text-xs rounded-pill hover:bg-white/[0.04] transition inline-flex items-center gap-1.5"
+          >
+            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+            Export CSV
+          </a>
           <button
             onClick={() => setCreating(true)}
             className="px-4 py-1.5 bg-brand-gradient text-deep-navy font-semibold text-xs rounded-pill hover:brightness-110 transition inline-flex items-center gap-1.5"
@@ -185,62 +215,21 @@ export default function DealsView({ initialDeals, contacts: initialContacts, com
                   deals={stageDeals}
                   contacts={contacts}
                   companies={companies}
+                  profiles={profiles}
                   onCardClick={(d) => setEditingDeal(d)}
                 />
               );
             })}
 
-            {/* LOST COLUMN — read-only, outside droppable targets */}
-            <div className="flex-none w-[230px] flex flex-col bg-navy border border-red-900/40 rounded-xl overflow-hidden">
-              <div className="px-3 py-2.5 border-b border-red-900/30 flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full flex-shrink-0 bg-red-500" />
-                <span className="font-mono text-[10px] font-semibold tracking-[0.15em] text-red-400">LOST</span>
-                <span className="ml-auto font-mono text-[10px] text-red-400/60 px-1.5 py-0.5 rounded-lg bg-red-500/10">
-                  {deals.filter((d) => d.deal_stage === 'lost').length}
-                </span>
-              </div>
-              <div className="flex-1 overflow-y-auto p-2 flex flex-col gap-1.5">
-                {deals.filter((d) => d.deal_stage === 'lost').length === 0 ? (
-                  <div className="text-center py-6 text-[11px] text-text-muted">No lost deals</div>
-                ) : (
-                  deals.filter((d) => d.deal_stage === 'lost').map((deal) => {
-                    const contact = contacts.find((c) => c.id === deal.primary_contact_id);
-                    const contactName = contact ? `${contact.first_name} ${contact.last_name}` : null;
-                    return (
-                      <div
-                        key={deal.id}
-                        onClick={() => setEditingDeal(deal)}
-                        className="bg-slate-light border border-red-900/20 rounded-lg p-2.5 cursor-pointer hover:border-red-700/40 transition-colors"
-                      >
-                        <div className="flex items-start justify-between gap-1 mb-1.5">
-                          <span className="text-xs font-semibold text-text-primary leading-tight line-clamp-2">{deal.name}</span>
-                          {annualisedValue(deal) > 0 && (
-                            <span className="text-[10px] font-mono text-red-400 flex-shrink-0">
-                              {fmtCurrency(annualisedValue(deal), deal.currency || 'ZAR')}
-                            </span>
-                          )}
-                        </div>
-                        {deal.loss_reason && (
-                          <div className="text-[10px] text-red-400/70 mb-1.5">{deal.loss_reason}</div>
-                        )}
-                        {contactName && (
-                          <div className="flex items-center gap-1.5 mt-1">
-                            <div className="w-4 h-4 rounded-full bg-red-500/20 flex items-center justify-center text-[8px] font-bold text-red-400 flex-shrink-0">
-                              {contactName.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()}
-                            </div>
-                            <span className="text-[10px] text-text-muted truncate">{contactName}</span>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            </div>
+            <LostColumn
+              deals={deals.filter((d) => d.deal_stage === 'lost')}
+              contacts={contacts}
+              onCardClick={(d) => setEditingDeal(d)}
+            />
           </div>
           <DragOverlay>
             {activeDeal ? (
-              <DealCard deal={activeDeal} contacts={contacts} companies={companies} dragging />
+              <DealCard deal={activeDeal} contacts={contacts} companies={companies} profiles={profiles} dragging />
             ) : null}
           </DragOverlay>
         </DndContext>
@@ -252,16 +241,21 @@ export default function DealsView({ initialDeals, contacts: initialContacts, com
           deal={editingDeal}
           contacts={contacts}
           companies={companies}
+          profiles={profiles}
+          currentUserId={currentUserId}
           defaultCurrency={profile?.default_currency || 'ZAR'}
+          onCompanyCreated={(c) => setCompanies((prev) => [...prev, c])}
           onClose={() => {
             setCreating(false);
             setEditingDeal(null);
+            if (openDealId) router.replace('/deals');
           }}
           onSaved={(d) => {
             if (editingDeal) onDealUpdated(d);
             else onDealCreated(d);
             setCreating(false);
             setEditingDeal(null);
+            if (openDealId) router.replace('/deals');
           }}
         />
       )}
