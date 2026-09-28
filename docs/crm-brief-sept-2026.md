@@ -112,10 +112,15 @@ These numbers feed: the "Weighted" pipeline figure on the Deals page, the financ
 > Deal owner: Simon Lloyd
 
 **Delivery**
+- **Google Chat (the main channel):** alerts are posted to the **CRM directors' Google Chat space**.
+  - "On entry" alerts post the moment the deal moves.
+  - Stalled deals post as one combined message each morning, so the space isn't flooded.
+  - Each message names the deal owner and has an "Open in CRM" link.
+  - Setup takes about 5 minutes (see Go-live, step 4). The Automations page shows whether it's connected and has a "Send test message" button.
 - **In-app (live now):** a new **Notifications** page with an unread count in the sidebar. Clicking an alert opens that deal.
-- **Email (ready, switched off):** once we pick an email sender, each user gets a **daily digest email** with their new alerts. Setup takes about 10 minutes (see Go-live, step 4).
+- **Email (built, off by default):** an optional daily digest email. It's no longer needed now that Google Chat is the channel. It stays off unless an email sender is set up.
 
-**→ Jamie: please send the cadence you want for each stage.** For each stage, give a "stalled after N days" number and say whether you want "on entry" alerts. Also confirm **in-app only, or in-app + email**. For now the stalled thresholds carry over the old defaults (Inbox 1, Qualifying 3, Discovery 7, Proposal 7, Negotiation 5, Verbal 3 days), and all "on entry" alerts are off. Anyone in the team can change these on the Automations page. No developer is needed.
+**→ Jamie: please send the cadence you want for each stage.** For each stage, give a "stalled after N days" number and say whether you want "on entry" alerts. Also confirm the Google Chat space to use. For now the stalled thresholds carry over the old defaults (Inbox 1, Qualifying 3, Discovery 7, Proposal 7, Negotiation 5, Verbal 3 days), and all "on entry" alerts are off. Anyone in the team can change these on the Automations page. No developer is needed.
 
 ---
 
@@ -149,6 +154,7 @@ Filters: add `&status=open` (active deals only), `won`, or `lost`. Add `&format=
   - attachments need file storage (Supabase Storage is fine),
   - replies drop off unless people keep BCC'ing,
   - a policy on storing client emails (POPIA / GDPR).
+- **Notifications:** each captured email, and each email that can't be matched to a deal, would post to the same **CRM directors' Google Chat space** as the deal alerts. That channel is now built and ready to reuse.
 - **Alternative:** the Gmail sync already on the roadmap (Phase 3) would capture emails automatically, with no BCC habit needed. But it takes more setup, because Google must approve the app.
 
 ---
@@ -159,21 +165,33 @@ Follow this order. The database change is compatible with the version currently 
 
 1. **Database:** in Supabase → SQL Editor, run `supabase/migrations/003_owner_alerts_notifications.sql`. It's safe to run twice.
 2. **Deploy:** merge the branch. Vercel deploys automatically.
+   Then run `supabase/migrations/004_google_chat_alerts.sql`. It turns on Supabase's `pg_net` extension, which the database uses to post to Google Chat.
 3. **Check:**
    - mark a Qualifying test deal as Lost, both by dragging it and through Edit Deal,
    - check that the Deal owner dropdown lists everyone,
    - click Export CSV,
    - switch on an "On entry" alert and move a deal to confirm a notification appears.
-4. **Email alerts (optional):**
+4. **Connect Google Chat:**
+   - In the directors' space in Google Chat, open *Apps & integrations* → *Webhooks* → *Add webhook*, name it "Algorithm CRM", and copy the URL. Adding webhooks needs a Google Workspace account, and the Workspace admin must allow incoming webhooks.
+   - In Supabase → SQL Editor, run:
+     ```sql
+     insert into integration_settings (key, value) values
+       ('google_chat_webhook_url', '<paste webhook URL>'),
+       ('app_url', 'https://<crm-address>')
+     on conflict (key) do update set value = excluded.value, updated_at = now();
+     ```
+   - On the Automations page, click **Send test message**.
+   - Treat the webhook URL like a password: anyone who has it can post into the space. If it leaks, delete the webhook in Google Chat, create a new one and re-run the SQL.
+5. **Email alerts (optional, not needed if Google Chat is used):**
    - create a Resend account and verify the sending domain,
    - in Vercel, set `RESEND_API_KEY`, `ALERT_EMAIL_FROM` (e.g. `CRM Alerts <crm@algorithm.agency>`) and `NEXT_PUBLIC_APP_URL`,
    - redeploy.
-5. **Finance live link (optional):** set `EXPORT_API_KEY` in Vercel (`openssl rand -base64 32`), redeploy, and send the link to finance privately.
+6. **Finance live link (optional):** set `EXPORT_API_KEY` in Vercel (`openssl rand -base64 32`), redeploy, and send the link to finance privately.
 
 ## Decisions needed from Jamie / Simon
 
 1. Keep Company required for Discovery → Won (it's no longer required for Lost)?
 2. Deal owner backfill: is "creator becomes owner" OK, or should some deals be bulk-reassigned?
 3. Agreed close probability % for each stage.
-4. Alert cadence for each stage (stalled-after days, and on-entry yes/no), and delivery: in-app only, or in-app + daily email.
+4. Alert cadence for each stage (stalled-after days, and on-entry yes/no), and which Google Chat space the alerts go to.
 5. Export: is the CSV button enough for finance, or do they also want the auto-refreshing Excel link?

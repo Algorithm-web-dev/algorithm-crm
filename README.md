@@ -125,7 +125,11 @@ Settings live on the **Automations** page and are **team-wide** (table `stage_al
 - **Stalled after N days** — Vercel Cron hits `/api/cron/process-alerts` daily at 09:00 UTC. Every deal that has sat in the stage longer than N days creates a notification for **every user**. `deal_alert_log` makes sure that happens once per stage entry — moving the deal resets its timer.
 - **On entry** — a Postgres trigger (`notify_deal_stage_entry`) notifies every user the moment a deal enters the stage, whichever screen moved it.
 
-Every alert names the deal owner. Alerts appear on the **Notifications** page (unread badge in the sidebar). If `RESEND_API_KEY` and `ALERT_EMAIL_FROM` are set, the daily cron also emails each user a digest of their un-emailed notifications from the last 7 days.
+Every alert names the deal owner. Alerts appear on the **Notifications** page (unread badge in the sidebar).
+
+**Google Chat:** if a webhook URL is saved in `integration_settings` (see `supabase/migrations/004_google_chat_alerts.sql`), alerts are also posted to the CRM directors' Google Chat space. On-entry alerts post instantly from the trigger via `pg_net`. Stalled alerts post as one batched message from the daily cron. Test the connection from the Automations page.
+
+If `RESEND_API_KEY` and `ALERT_EMAIL_FROM` are set, the daily cron also emails each user a digest of their un-emailed notifications from the last 7 days.
 
 ---
 

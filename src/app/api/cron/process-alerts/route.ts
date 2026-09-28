@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { getChatConfig, postToGoogleChat } from '@/lib/googleChat';
 import {
   type Deal,
   type Notification,
@@ -15,7 +16,9 @@ import {
 //
 // 1. Stalled alerts: for each stage with stall_days set, every deal that has sat in
 //    that stage longer than the threshold notifies ALL users (once per stage entry).
-// 2. Email digest: if RESEND_API_KEY + ALERT_EMAIL_FROM are set, each user is emailed
+// 2. Google Chat: new stalled alerts are posted as one message to the directors'
+//    space, if connected (on-entry alerts are posted instantly by a DB trigger).
+// 3. Email digest: if RESEND_API_KEY + ALERT_EMAIL_FROM are set, each user is emailed
 //    their not-yet-emailed notifications (stalled + stage-entry) in one message.
 
 export const dynamic = 'force-dynamic';
@@ -39,6 +42,8 @@ export async function GET(request: NextRequest) {
   const profileMap = new Map(team.map((p) => [p.id, p]));
 
   let stalledFired = 0;
+  const chatLines: string[] = [];
+  const chat = await getChatConfig(supabase);
 
   for (const rule of (rules ?? []) as StageAlertRule[]) {
     const cutoff = new Date(Date.now() - rule.stall_days! * 86400000).toISOString();
@@ -79,6 +84,27 @@ export async function GET(request: NextRequest) {
       }
       console.log(`[ALERT] Stalled: "${deal.name}" in ${stageName} ${days}d — owner ${owner} — ${team.length} users`);
       stalledFired++;
+      chatLines.push(
+        `• *${deal.name}* — ${stageName} for ${days} days · Deal owner: ${owner}` +
+          (chat.appUrl ? ` · <${chat.appUrl}/deals?deal=${deal.id}|Open>` : ''),
+      );
+    }
+  }
+
+  let chatStatus: 'sent' | 'nothing to send' | 'not connected' | 'failed' = 'not connected';
+  if (chat.webhookUrl) {
+    if (chatLines.length === 0) chatStatus = 'nothing to send';
+    else {
+      try {
+        await postToGoogleChat(chat.webhookUrl, [
+          `⏰ *${chatLines.length} stalled deal${chatLines.length === 1 ? '' : 's'}*`,
+          ...chatLines,
+        ]);
+        chatStatus = 'sent';
+      } catch (e) {
+        console.error(`[ALERT] Google Chat post failed: ${(e as Error).message}`);
+        chatStatus = 'failed';
+      }
     }
   }
 
@@ -87,6 +113,7 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({
     stalled_alerts: stalledFired,
     rules: rules?.length ?? 0,
+    google_chat: chatStatus,
     emails_sent: emailed,
     timestamp: new Date().toISOString(),
   });
