@@ -165,7 +165,7 @@ Follow this order. The database change is compatible with the version currently 
 
 1. **Database:** in Supabase → SQL Editor, run `supabase/migrations/003_owner_alerts_notifications.sql`. It's safe to run twice.
 2. **Deploy:** merge the branch. Vercel deploys automatically.
-   Then run `supabase/migrations/004_google_chat_alerts.sql`. It turns on Supabase's `pg_net` extension, which the database uses to post to Google Chat.
+   Then run `supabase/migrations/004_google_chat_alerts.sql`. It turns on Supabase's `pg_net` extension, which the database uses to post to Google Chat. Then run `supabase/migrations/005_fix_google_chat_content_type.sql`, a one-function fix: without it, posts from the database to Google Chat are silently dropped.
 3. **Check:**
    - mark a Qualifying test deal as Lost, both by dragging it and through Edit Deal,
    - check that the Deal owner dropdown lists everyone,

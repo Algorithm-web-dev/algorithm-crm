@@ -47,7 +47,7 @@ begin
   perform net.http_post(
     url     := webhook,
     body    := jsonb_build_object('text', message),
-    headers := '{"Content-Type": "application/json; charset=UTF-8"}'::jsonb
+    headers := '{"Content-Type": "application/json"}'::jsonb
   );
 exception when others then
   raise warning 'Google Chat post failed: %', sqlerrm;
