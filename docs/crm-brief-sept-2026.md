@@ -29,7 +29,7 @@ The same block applied to **any** early-stage lead moved to Lost, and to any lat
 - **Company is no longer required to mark a deal Lost.** Leads keep their prospect details, and the form asks for a loss reason instead.
 - **You can now drag deals onto the Lost column.** It opens the usual "Mark as Lost" box. Previously, dragging a lead there would have asked you to create a contact and company first.
 - **"+ Create new company…"** is now an option in the Company dropdown. It's pre-filled with the prospect's company name, for the cases where a company genuinely is needed.
-- Company is **still required** for active late stages (Discovery → Verbal, and Won). That keeps qualified pipeline data clean. **→ Jamie: please confirm you're happy with this rule.**
+- Company is **still required** for active late stages (Discovery → Verbal, and Won). That keeps qualified pipeline data clean. **✅ Confirmed by Jamie, 5 Oct 2026.**
 - Stage changes made through the Edit Deal form now also appear in the deal's activity history. Re-opening a Lost deal clears its loss reason.
 
 ### Checking how many other deals are affected
@@ -64,13 +64,13 @@ order by created_at;
 - A user who still owns deals can't be deleted until their deals are reassigned. This stops deals from ending up with no owner.
 
 **Backfill.** Existing deals were automatically given **their creator as the owner**. Individual deals can be reassigned from the Edit Deal form.
-**→ Jamie: please confirm this is OK.** If you'd rather bulk-assign (e.g. "all Proposal deals → Simon"), send me the rules and I'll run a one-off update.
+**✅ Confirmed by Jamie, 5 Oct 2026.** For a bulk reassignment later (e.g. "all Proposal deals → Simon"), send the rules and a developer can run a one-off update.
 
 ---
 
 ## 3. Stage probability configuration
 
-**Current stages and probabilities.** These are the values that were previously hard-coded, now moved into the config file. **They have not been reviewed yet.**
+**Current stages and probabilities.** These are the values that were previously hard-coded, now moved into the config file. **✅ Approved by Jamie, 5 Oct 2026.**
 
 | Stage | Probability |
 |---|---|
@@ -83,7 +83,6 @@ order by created_at;
 | Won | 100% |
 | Lost | 0% |
 
-**→ Jamie / Simon: please confirm or send the agreed percentage for each stage.**
 
 **Where it lives:** `config/stage-probabilities.json` in the code repository. It's a short, readable file with one number per stage. The current values are also shown read-only on the **Automations** page in the CRM, so anyone can check them.
 
@@ -206,10 +205,15 @@ Follow this order. The database change is compatible with the version currently 
    - redeploy.
 6. **Finance live link (optional):** set `EXPORT_API_KEY` in Vercel (`openssl rand -base64 32`), redeploy, and send the link to finance privately.
 
-## Decisions needed from Jamie / Simon
+## Decisions from Jamie / Simon
 
-1. Keep Company required for Discovery → Won (it's no longer required for Lost)?
-2. Deal owner backfill: is "creator becomes owner" OK, or should some deals be bulk-reassigned?
-3. Agreed close probability % for each stage.
+Agreed by Jamie on 5 Oct 2026:
+
+1. ✅ **Company stays required for Discovery → Won.** It isn't required for Lost. No change needed; this is how the CRM already works.
+2. ✅ **Existing deals keep their creator as the deal owner.** This backfill was done by migration 003. Individual deals can still be reassigned in Edit Deal.
+3. ✅ **Close probabilities approved as listed:** Inbox 5%, Qualifying 15%, Discovery 25%, Proposal 45%, Negotiation 65%, Verbal 85%, Won 100%, Lost 0%. `config/stage-probabilities.json` is now marked APPROVED (reviewed by Jamie Leigh, 2026-10-05).
+
+Still open:
+
 4. Alert cadence for each stage (stalled-after days, and on-entry yes/no), and which Google Chat space the alerts go to.
 5. Export: is the CSV button enough for finance, or do they also want the auto-refreshing Excel link?
