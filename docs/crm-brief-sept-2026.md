@@ -125,7 +125,7 @@ These numbers feed: the "Weighted" pipeline figure on the Deals page, the financ
 
 ## 5. Data export for the finance tracker
 
-**Recommendation:** an **"Export CSV" button** on the Deals page. One click downloads a spreadsheet that opens directly in Excel, which is the most accessible option for a non-technical finance user. For a tracker that refreshes itself, the same data is also available at a secure link (below).
+**Recommendation:** an **Export** button on the Deals page with two choices: **Excel (.xlsx)** or **CSV**. The Excel option downloads an Excel spreadsheet (`.xlsx`): values are proper numbers, the probability is a real percentage (so Value × Probability works directly), dates are Excel dates, and the header row is frozen with filters. This is the most accessible option for a non-technical finance user. For a tracker that refreshes itself, the same data is also available at a secure link (below).
 
 **Columns:** Deal ID, Deal Name, Stage, **Deal Owner**, Deal Owner Email, Currency, Monthly Value, One-off Value, **Deal Value**, **Probability (%)**, Expected Close Date, Last Updated.
 
@@ -186,7 +186,7 @@ Follow this order. The database change is compatible with the version currently 
 3. **Check:**
    - mark a Qualifying test deal as Lost, both by dragging it and through Edit Deal,
    - check that the Deal owner dropdown lists everyone,
-   - click Export CSV,
+   - click Export → Excel,
    - switch on an "On entry" alert and move a deal to confirm a notification appears.
 4. **Connect Google Chat:**
    - In the directors' space in Google Chat, open *Apps & integrations* → *Webhooks* → *Add webhook*, name it "Algorithm CRM", and copy the URL. Adding webhooks needs a Google Workspace account, and the Workspace admin must allow incoming webhooks.
@@ -229,4 +229,4 @@ Agreed by Jamie on 5 Oct 2026:
 
 Still open:
 
-5. Export: is the CSV button enough for finance, or do they also want the auto-refreshing Excel link?
+5. ✅ **Export format: Excel spreadsheet** (confirmed 5 Oct 2026). The Export button offers Excel (`.xlsx`) or CSV. Still open: does finance also want the auto-refreshing link (needs `EXPORT_API_KEY`)?

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { timingSafeEqual } from 'crypto';
+import { EXPORT_COLUMNS, buildDealsWorkbook, type ExportRow } from '@/lib/exportWorkbook';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { type Deal, type Profile, annualisedValue, getStage, profileName } from '@/types';
@@ -8,33 +9,20 @@ import { type Deal, type Profile, annualisedValue, getStage, profileName } from 
 //  GET /api/export/deals — deals for the finance tracker.
 //
 //  Auth (either):
-//    - signed in to the CRM (the "Export CSV" button on the Deals page), or
+//    - signed in to the CRM (the Export → Excel / CSV menu on the Deals page), or
 //    - an API key matching EXPORT_API_KEY, sent as `Authorization: Bearer <key>`
 //      or `?key=<key>` (for Excel → Data → From Web, which can't set headers).
 //
 //  Query params:
-//    format=csv (default) | json
+//    format=xlsx (default — Excel workbook) | csv | json
 //    status=all (default) | open | won | lost
 // ============================================================================
 
 export const dynamic = 'force-dynamic';
 
-const COLUMNS = [
-  'Deal ID',
-  'Deal Name',
-  'Stage',
-  'Deal Owner',
-  'Deal Owner Email',
-  'Currency',
-  'Monthly Value',
-  'One-off Value',
-  'Deal Value (12 x Monthly + One-off)',
-  'Probability (%)',
-  'Expected Close Date',
-  'Last Updated',
-] as const;
+const COLUMNS = EXPORT_COLUMNS;
 
-type Row = Record<(typeof COLUMNS)[number], string | number>;
+type Row = ExportRow;
 
 function keyMatches(given: string | null): boolean {
   const expected = process.env.EXPORT_API_KEY;
@@ -104,12 +92,29 @@ export async function GET(request: NextRequest) {
     };
   });
 
-  if (params.get('format') === 'json') {
+  const format = params.get('format') ?? 'xlsx';
+  const date = new Date().toISOString().split('T')[0];
+
+  if (format === 'json') {
     return NextResponse.json({ generated_at: new Date().toISOString(), count: rows.length, deals: rows });
   }
 
+  if (format === 'xlsx') {
+    const body = await buildDealsWorkbook(rows);
+    return new NextResponse(body, {
+      headers: {
+        'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'Content-Disposition': `attachment; filename="algorithm-crm-deals-${date}.xlsx"`,
+        'Cache-Control': 'no-store',
+      },
+    });
+  }
+
+  if (format !== 'csv') {
+    return NextResponse.json({ error: 'format must be xlsx, csv or json' }, { status: 400 });
+  }
+
   const lines = [COLUMNS.join(','), ...rows.map((r) => COLUMNS.map((c) => csvCell(r[c])).join(','))];
-  const date = new Date().toISOString().split('T')[0];
   // BOM so Excel reads the file as UTF-8
   return new NextResponse('﻿' + lines.join('\r\n'), {
     headers: {
@@ -119,3 +124,4 @@ export async function GET(request: NextRequest) {
     },
   });
 }
+
