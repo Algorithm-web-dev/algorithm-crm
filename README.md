@@ -10,7 +10,7 @@ A performance-tuned CRM for digital agencies. Built with Next.js 14, Supabase, a
 - Deal owner on every deal (a real user, reassignable)
 - Team-wide stage alerts (stalled-for-N-days and on-entry), sent to all users with the deal owner named — in-app Notifications, optional daily email digest
 - Stage close-probabilities in `config/stage-probabilities.json`
-- CSV / JSON deal export for the finance tracker (`/api/export/deals`)
+- Excel / CSV / JSON deal export for the finance tracker (`/api/export/deals`)
 - ZAR as default currency with the R symbol
 
 ---
@@ -93,7 +93,7 @@ src/
 │   ├── (auth)/             # Login & signup
 │   │   ├── notifications/  # In-app alert inbox
 │   ├── api/cron/process-alerts/  # Daily stalled-deal alerts + email digest
-│   ├── api/export/deals/   # CSV/JSON export for the finance tracker
+│   ├── api/export/deals/   # Excel/CSV/JSON export for the finance tracker
 │   ├── globals.css         # Algorithm brand tokens
 │   └── layout.tsx
 ├── components/
@@ -143,10 +143,10 @@ If `RESEND_API_KEY` and `ALERT_EMAIL_FROM` are set, the daily cron also emails e
 
 ## Deal export
 
-`GET /api/export/deals` returns every deal as CSV (Excel-ready) with name, stage, owner, value and probability. It is linked from the **Export CSV** button on the Deals page.
+`GET /api/export/deals` returns every deal as an Excel workbook (`.xlsx`) with name, stage, owner, value and probability. Money columns are numeric, probability is a real percentage, dates are Excel dates, and the header is frozen and filterable. It is linked from the **Export Excel** button on the Deals page. Add `?format=csv` or `?format=json` for other formats.
 
 - Auth: a signed-in session, or `EXPORT_API_KEY` as `Authorization: Bearer <key>` or `?key=<key>` (for Excel → Data → From Web).
-- `?status=open|won|lost|all` (default `all`), `?format=json`.
+- `?status=open|won|lost|all` (default `all`), `?format=xlsx|csv|json` (default `xlsx`).
 
 See `docs/crm-brief-sept-2026.md` for the full write-up of these features.
 

@@ -269,8 +269,8 @@ export default function DealsView({
         <div className="ml-auto flex items-center gap-2">
           <a
             href="/api/export/deals"
-            title="Download all deals (value, owner, probability) as a CSV that opens in Excel"
-            aria-label="Export CSV"
+            title="Download all deals (value, owner, probability) as an Excel spreadsheet"
+            aria-label="Export Excel"
             className="px-3 sm:px-4 py-1.5 bg-deep-navy border border-white/10 text-text-primary font-semibold text-xs rounded-pill hover:bg-white/[0.04] transition inline-flex items-center gap-1.5"
           >
             <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -278,7 +278,7 @@ export default function DealsView({
               <polyline points="7 10 12 15 17 10" />
               <line x1="12" y1="15" x2="12" y2="3" />
             </svg>
-            <span className="hidden sm:inline">Export CSV</span>
+            <span className="hidden sm:inline">Export Excel</span>
           </a>
           <button
             onClick={() => setCreating(true)}
