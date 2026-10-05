@@ -143,7 +143,7 @@ If `RESEND_API_KEY` and `ALERT_EMAIL_FROM` are set, the daily cron also emails e
 
 ## Deal export
 
-`GET /api/export/deals` returns every deal as an Excel workbook (`.xlsx`) with name, stage, owner, value and probability. Money columns are numeric, probability is a real percentage, dates are Excel dates, and the header is frozen and filterable. It is linked from the **Export Excel** button on the Deals page. Add `?format=csv` or `?format=json` for other formats.
+`GET /api/export/deals` returns every deal as an Excel workbook (`.xlsx`) with name, stage, owner, value and probability. Money columns are numeric, probability is a real percentage, dates are Excel dates, and the header is frozen and filterable. The **Export** button on the Deals page offers Excel or CSV. Add `?format=csv` or `?format=json` for other formats.
 
 - Auth: a signed-in session, or `EXPORT_API_KEY` as `Authorization: Bearer <key>` or `?key=<key>` (for Excel → Data → From Web).
 - `?status=open|won|lost|all` (default `all`), `?format=xlsx|csv|json` (default `xlsx`).

@@ -9,7 +9,7 @@ import { type Deal, type Profile, annualisedValue, getStage, profileName } from 
 //  GET /api/export/deals — deals for the finance tracker.
 //
 //  Auth (either):
-//    - signed in to the CRM (the "Export Excel" button on the Deals page), or
+//    - signed in to the CRM (the Export → Excel / CSV menu on the Deals page), or
 //    - an API key matching EXPORT_API_KEY, sent as `Authorization: Bearer <key>`
 //      or `?key=<key>` (for Excel → Data → From Web, which can't set headers).
 //
