@@ -146,7 +146,14 @@ export default function Sidebar({ userName, userEmail, unreadCount, lostCount, m
       )}
 
       <div className="pt-3 border-t border-white/[0.06]">
-        <div className="flex items-center gap-2 px-1 py-1.5 group">
+        {/* icon rail stacks avatar + sign-out vertically so sign-out is always reachable */}
+        <div
+          className={cn(
+            'flex items-center gap-2 px-1 py-1.5 group',
+            mode === 'collapsed' && 'flex-col',
+            mode === 'auto' && 'flex-col 3xl:flex-row',
+          )}
+        >
           <div
             className="w-7 h-7 rounded-full bg-brand-gradient flex items-center justify-center text-deep-navy font-bold text-[10px] flex-shrink-0"
             title={`${userName} — ${userEmail}`}
@@ -161,8 +168,9 @@ export default function Sidebar({ userName, userEmail, unreadCount, lostCount, m
             onClick={handleSignOut}
             className={cn(
               'text-text-muted hover:text-text-primary p-1 rounded transition',
-              onClose ? '' : 'opacity-0 group-hover:opacity-100',
-              label,
+              // full sidebar: reveal on hover (as before); rail and drawer: always visible
+              mode === 'expanded' && !onClose && 'opacity-0 group-hover:opacity-100',
+              mode === 'auto' && '3xl:opacity-0 3xl:group-hover:opacity-100',
             )}
             title="Sign out"
           >
