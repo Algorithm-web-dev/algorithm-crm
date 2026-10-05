@@ -13,9 +13,10 @@ interface Props {
   companies: Company[];
   profiles: Profile[];
   onCardClick: (d: Deal) => void;
+  className?: string;
 }
 
-export default function KanbanColumn({ stage, deals, contacts, companies, profiles, onCardClick }: Props) {
+export default function KanbanColumn({ stage, deals, contacts, companies, profiles, onCardClick, className }: Props) {
   const { setNodeRef, isOver } = useDroppable({ id: stage.id });
 
   const total = deals.reduce((s, d) => s + annualisedValue(d), 0);
@@ -24,27 +25,31 @@ export default function KanbanColumn({ stage, deals, contacts, companies, profil
     <div
       ref={setNodeRef}
       className={cn(
-        'flex-none w-[230px] flex flex-col bg-navy border rounded-xl overflow-hidden transition-colors',
+        'flex flex-col bg-navy border rounded-xl overflow-hidden transition-colors',
         isOver ? 'border-accent bg-accent/5' : 'border-white/[0.06]',
+        className,
       )}
     >
-      <div className="px-3 py-2.5 border-b border-white/[0.06] flex items-center gap-2">
+      <div className="px-3 py-2.5 border-b border-white/[0.06]">
+      <div className="flex items-center gap-2 min-w-0">
         <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: stage.color }} />
         <span
-          className="font-mono text-[10px] font-semibold tracking-[0.15em]"
+          className="font-mono text-[10px] font-semibold tracking-[0.15em] truncate"
           style={{ color: stage.color }}
         >
           {stage.name.toUpperCase()}
         </span>
         <span
-          className="ml-auto font-mono text-[10px] text-text-muted px-1.5 py-0.5 rounded-lg"
+          className="ml-auto font-mono text-[10px] text-text-muted px-1.5 py-0.5 rounded-lg flex-shrink-0"
           style={{ background: `${stage.color}1a` }}
         >
           {deals.length}
         </span>
-        {total > 0 && (
-          <span className="font-mono text-[9px] text-text-muted">{fmtCurrency(total, deals[0]?.currency || 'ZAR')}</span>
-        )}
+      </div>
+      {/* reserve the line even when empty so column headers stay aligned */}
+      <div className="font-mono text-[10px] text-text-muted mt-1 tabular-nums h-3.5">
+        {total > 0 && `${fmtCurrency(total, deals[0]?.currency || 'ZAR')} total`}
+      </div>
       </div>
       <div className="flex-1 overflow-y-auto p-2 flex flex-col gap-1.5">
         {deals.map((deal) => (

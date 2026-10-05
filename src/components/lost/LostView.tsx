@@ -93,9 +93,9 @@ export default function LostView({ initialDeals, contacts, companies, profile }:
           }}
         />
       )}
-      <div className="flex items-center justify-between px-5 py-3 border-b border-white/[0.06]">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-3 sm:px-5 py-3 border-b border-white/[0.06]">
         <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-extrabold tracking-tight">Lost</h1>
+          <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight">Lost</h1>
           <span className="text-xs text-text-muted">Closed lost deals</span>
         </div>
         <div className="flex items-center gap-3">
@@ -117,7 +117,7 @@ export default function LostView({ initialDeals, contacts, companies, profile }:
         </div>
       </div>
 
-      <div className="flex-1 overflow-auto p-5">
+      <div className="flex-1 overflow-auto p-3 sm:p-5">
         {filtered.length === 0 ? (
           <div className="text-center py-20 text-text-muted">
             <div className="text-5xl mb-4">🎯</div>
@@ -155,8 +155,8 @@ export default function LostView({ initialDeals, contacts, companies, profile }:
               </div>
             )}
 
-            <div className="bg-slate-light border border-white/[0.06] rounded-2xl overflow-hidden">
-              <table className="w-full text-sm">
+            <div className="bg-slate-light border border-white/[0.06] rounded-2xl overflow-x-auto">
+              <table className="w-full min-w-[720px] text-sm">
                 <thead>
                   <tr className="text-left text-xs font-mono uppercase tracking-wider text-text-muted border-b border-white/[0.06]">
                     <th className="py-3 px-4">Deal</th>

@@ -193,7 +193,7 @@ export default function PromoteModal({ deal, newStage, contacts, companies, onCl
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-2 gap-3 mb-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
               <div>
                 <Label required>First name</Label>
                 <Input value={first} onChange={(e) => setFirst(e.target.value)} />
@@ -203,7 +203,7 @@ export default function PromoteModal({ deal, newStage, contacts, companies, onCl
                 <Input value={last} onChange={(e) => setLast(e.target.value)} />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <Label required>Email</Label>
                 <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
@@ -239,7 +239,7 @@ export default function PromoteModal({ deal, newStage, contacts, companies, onCl
         <h3 className="font-mono text-xs font-semibold text-text-muted mb-3 uppercase tracking-wider">
           Deal value
         </h3>
-        <div className="grid grid-cols-3 gap-3 mb-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
           <div>
             <Label>Monthly</Label>
             <Input type="number" min="0" value={monthly} onChange={(e) => setMonthly(e.target.value)} />

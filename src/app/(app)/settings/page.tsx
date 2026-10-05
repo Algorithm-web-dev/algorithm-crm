@@ -19,11 +19,11 @@ export default async function SettingsPage() {
 
   return (
     <>
-      <div className="flex items-center gap-3 px-5 py-3 border-b border-white/[0.06]">
-        <h1 className="text-2xl font-extrabold tracking-tight">Settings</h1>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 sm:px-5 py-3 border-b border-white/[0.06]">
+        <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight">Settings</h1>
         <span className="text-xs text-text-muted">Your profile & preferences</span>
       </div>
-      <div className="flex-1 overflow-auto p-5">
+      <div className="flex-1 overflow-auto p-3 sm:p-5">
         <div className="max-w-2xl">
           <SettingsForm profile={profile as Profile} email={user.email || ''} />
         </div>

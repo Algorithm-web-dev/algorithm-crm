@@ -248,7 +248,7 @@ export default function DealModal({
         </>
       }
     >
-      <div className="grid grid-cols-2 gap-3 mb-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
         <div>
           <Label>Stage</Label>
           <Select value={stage} onChange={(e) => setStage(e.target.value as DealStageId)}>
@@ -271,7 +271,7 @@ export default function DealModal({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 mb-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
         <div>
           <Label required>Deal owner</Label>
           <Select value={dealOwnerId} onChange={(e) => setDealOwnerId(e.target.value)}>
@@ -317,7 +317,7 @@ export default function DealModal({
           <h3 className="font-mono text-xs font-semibold text-text-muted mb-3 uppercase tracking-wider">
             {early ? 'Prospect info (early stage)' : 'Prospect info'}
           </h3>
-          <div className="grid grid-cols-2 gap-3 mb-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
             <div>
               <Label>First name</Label>
               <Input value={leadFirstName} onChange={(e) => setLeadFirstName(e.target.value)} />
@@ -327,7 +327,7 @@ export default function DealModal({
               <Input value={leadLastName} onChange={(e) => setLeadLastName(e.target.value)} />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <Label>Email</Label>
               <Input type="email" value={leadEmail} onChange={(e) => setLeadEmail(e.target.value)} />
@@ -346,7 +346,7 @@ export default function DealModal({
           <h3 className="font-mono text-xs font-semibold text-text-muted mb-3 uppercase tracking-wider">
             Linked records
           </h3>
-          <div className="grid grid-cols-2 gap-3 mb-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
             <div>
               <Label required={companyRequired}>Company</Label>
               <Select value={companyId} onChange={(e) => setCompanyId(e.target.value)}>
@@ -387,7 +387,7 @@ export default function DealModal({
           <h3 className="font-mono text-xs font-semibold text-text-muted mb-3 mt-4 uppercase tracking-wider">
             Value
           </h3>
-          <div className="grid grid-cols-3 gap-3 mb-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
             <div>
               <Label>Monthly</Label>
               <Input

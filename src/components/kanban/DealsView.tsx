@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation';
 import {
   DndContext,
   DragOverlay,
-  PointerSensor,
+  MouseSensor,
+  TouchSensor,
   useSensor,
   useSensors,
   type DragEndEvent,
@@ -27,7 +28,9 @@ import {
 } from '@/types';
 import { createClient } from '@/lib/supabase/client';
 import KanbanColumn from './KanbanColumn';
-import LostColumn from './LostColumn';
+import ClosedLane from './ClosedLane';
+import { useMediaQuery } from '@/lib/useMediaQuery';
+import { cn } from '@/lib/utils';
 import DealCard from './DealCard';
 import DealModal from '@/components/forms/DealModal';
 import PromoteModal from '@/components/forms/PromoteModal';
@@ -75,7 +78,14 @@ export default function DealsView({
   const [promoting, setPromoting] = useState<{ deal: Deal; newStage: DealStageId } | null>(null);
   const [marking_lost, setMarkingLost] = useState<Deal | null>(null);
 
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+  // Mouse: drag after 5px. Touch: long-press (250ms) to drag, so swiping still scrolls the board.
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 8 } }),
+  );
+  // Phones: every stage (incl. Won/Lost) is a full-width swipeable column.
+  // Tablet+: Won/Lost are slim lanes pinned to the right of the board.
+  const isPhone = useMediaQuery('(max-width: 767px)');
   const supabase = createClient();
 
   // Metrics
@@ -171,27 +181,28 @@ export default function DealsView({
   return (
     <>
       {/* TOPBAR */}
-      <div className="flex items-center gap-3 px-5 py-3 border-b border-white/[0.06]">
-        <div className="flex items-baseline gap-3">
-          <h1 className="text-2xl font-extrabold tracking-tight">Deals</h1>
-          <span className="text-xs text-text-muted">Your unified pipeline</span>
+      <div className="flex items-center gap-3 px-3 sm:px-5 py-3 border-b border-white/[0.06]">
+        <div className="flex items-baseline gap-3 min-w-0">
+          <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight">Deals</h1>
+          <span className="hidden sm:inline text-xs text-text-muted truncate">Your unified pipeline</span>
         </div>
         <div className="ml-auto flex items-center gap-2">
           <a
             href="/api/export/deals"
             title="Download all deals (value, owner, probability) as a CSV that opens in Excel"
-            className="px-4 py-1.5 bg-deep-navy border border-white/10 text-text-primary font-semibold text-xs rounded-pill hover:bg-white/[0.04] transition inline-flex items-center gap-1.5"
+            aria-label="Export CSV"
+            className="px-3 sm:px-4 py-1.5 bg-deep-navy border border-white/10 text-text-primary font-semibold text-xs rounded-pill hover:bg-white/[0.04] transition inline-flex items-center gap-1.5"
           >
             <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
               <polyline points="7 10 12 15 17 10" />
               <line x1="12" y1="15" x2="12" y2="3" />
             </svg>
-            Export CSV
+            <span className="hidden sm:inline">Export CSV</span>
           </a>
           <button
             onClick={() => setCreating(true)}
-            className="px-4 py-1.5 bg-brand-gradient text-deep-navy font-semibold text-xs rounded-pill hover:brightness-110 transition inline-flex items-center gap-1.5"
+            className="px-3 sm:px-4 py-1.5 bg-brand-gradient text-deep-navy font-semibold text-xs rounded-pill hover:brightness-110 transition inline-flex items-center gap-1.5 whitespace-nowrap"
           >
             <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
               <line x1="12" y1="5" x2="12" y2="19" />
@@ -203,7 +214,7 @@ export default function DealsView({
       </div>
 
       {/* METRICS */}
-      <div className="flex px-5 py-4 border-b border-white/[0.06]">
+      <div className="grid grid-cols-2 gap-x-4 gap-y-3 md:flex md:gap-0 px-3 sm:px-5 py-3 md:py-4 border-b border-white/[0.06]">
         <Metric label="Qualified Pipeline" value={fmtCurrencyFull(metrics.totalPipeline, profile?.default_currency || 'ZAR')} sub={`${metrics.qualifiedCount} deals · ${metrics.earlyCount} in early stages`} gradient />
         <Metric label="Weighted" value={fmtCurrencyFull(metrics.weighted, profile?.default_currency || 'ZAR')} sub="By stage probability" />
         <Metric label="Won 30d" value={fmtCurrencyFull(metrics.wonRecent, profile?.default_currency || 'ZAR')} sub="Annualised" highlight="success" />
@@ -211,37 +222,56 @@ export default function DealsView({
       </div>
 
       {/* KANBAN */}
-      <div className="flex-1 overflow-auto px-5 py-4">
-        <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-          <div className="flex gap-2.5 h-full min-w-min">
-            {DEAL_STAGES.filter((s) => s.id !== 'lost').map((stage) => {
-              const stageDeals = deals.filter((d) => d.deal_stage === stage.id);
-              return (
+      <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+        <div className="flex-1 min-h-0 flex gap-2 3xl:gap-2.5 px-3 3xl:px-5 py-3 sm:py-4">
+          {/* Open stages: stretch to fill; scroll sideways only when the screen is too narrow */}
+          <div className="flex-1 min-w-0 overflow-x-auto overflow-y-hidden snap-x snap-mandatory md:snap-none scroll-px-3">
+            <div className="flex gap-2 3xl:gap-2.5 h-full">
+              {DEAL_STAGES.filter((s) => s.id !== 'won' && s.id !== 'lost').map((stage) => (
                 <KanbanColumn
                   key={stage.id}
                   stage={stage}
-                  deals={stageDeals}
+                  deals={deals.filter((d) => d.deal_stage === stage.id)}
                   contacts={contacts}
                   companies={companies}
                   profiles={profiles}
                   onCardClick={openDeal}
+                  className={COLUMN_SIZE}
                 />
-              );
-            })}
-
-            <LostColumn
-              deals={deals.filter((d) => d.deal_stage === 'lost')}
-              contacts={contacts}
-              onCardClick={openDeal}
-            />
+              ))}
+              {isPhone &&
+                (['won', 'lost'] as const).map((kind) => (
+                  <ClosedLane
+                    key={kind}
+                    kind={kind}
+                    deals={deals.filter((d) => d.deal_stage === kind)}
+                    profiles={profiles}
+                    onCardClick={openDeal}
+                    className={COLUMN_SIZE}
+                  />
+                ))}
+            </div>
           </div>
+
+          {/* Closed lanes: always visible on tablet and up */}
+          {!isPhone &&
+            (['won', 'lost'] as const).map((kind) => (
+              <ClosedLane
+                key={kind}
+                kind={kind}
+                deals={deals.filter((d) => d.deal_stage === kind)}
+                profiles={profiles}
+                onCardClick={openDeal}
+                className="flex-none w-[132px] 3xl:w-[180px]"
+              />
+            ))}
+        </div>
           <DragOverlay>
             {activeDeal ? (
               <DealCard deal={activeDeal} contacts={contacts} companies={companies} profiles={profiles} dragging />
             ) : null}
           </DragOverlay>
-        </DndContext>
-      </div>
+      </DndContext>
 
       {/* MODALS */}
       {(creating || editingDeal) && (
@@ -322,6 +352,12 @@ export default function DealsView({
   );
 }
 
+// Phone: one column per screen width (swipe). Tablet+: share the space, never
+// narrower than 140px — all stages fit from ~1280px wide; below that the open
+// stages scroll sideways while Won/Lost stay pinned.
+const COLUMN_SIZE =
+  'flex-none w-[85vw] max-w-[340px] snap-start md:flex-1 md:w-auto md:max-w-none md:min-w-[140px]';
+
 function Metric({
   label,
   value,
@@ -336,16 +372,16 @@ function Metric({
   highlight?: 'success';
 }) {
   return (
-    <div className="pr-6 mr-6 border-r border-white/[0.06] last:border-none last:mr-0">
-      <div className="font-mono text-[9px] font-semibold tracking-[0.2em] text-text-muted mb-1 uppercase">{label}</div>
+    <div className="min-w-0 md:pr-6 md:mr-6 md:border-r border-white/[0.06] md:last:border-none md:last:mr-0">
+      <div className="font-mono text-[9px] font-semibold tracking-[0.2em] text-text-muted mb-1 uppercase truncate">{label}</div>
       <div
-        className={`text-2xl font-extrabold tracking-tight leading-none tabular-nums ${
+        className={`text-lg sm:text-xl xl:text-2xl font-extrabold tracking-tight leading-none tabular-nums truncate ${
           gradient ? 'gradient-text' : highlight === 'success' ? 'text-accent-2' : 'text-text-primary'
         }`}
       >
         {value}
       </div>
-      {sub && <div className="text-[10px] text-text-muted mt-1">{sub}</div>}
+      {sub && <div className="text-[10px] text-text-muted mt-1 truncate">{sub}</div>}
     </div>
   );
 }

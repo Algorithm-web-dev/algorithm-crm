@@ -23,17 +23,17 @@ export default function Modal({ title, subtitle, large, onClose, children, foote
 
   return (
     <div
-      className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+      className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-0 sm:p-4"
       onClick={onClose}
     >
       <div
         onClick={(e) => e.stopPropagation()}
         className={cn(
-          'bg-slate-light border border-white/[0.06] rounded-2xl shadow-2xl w-full max-h-[88vh] overflow-y-auto',
+          'bg-slate-light border border-white/[0.06] rounded-t-2xl sm:rounded-2xl shadow-2xl w-full max-h-[92dvh] sm:max-h-[88vh] overflow-y-auto',
           large ? 'max-w-3xl' : 'max-w-xl',
         )}
       >
-        <div className="px-6 py-5 border-b border-white/[0.06] flex justify-between items-start gap-4">
+        <div className="px-4 sm:px-6 py-4 sm:py-5 border-b border-white/[0.06] flex justify-between items-start gap-4">
           <div>
             <h2 className="text-xl font-extrabold tracking-tight">{title}</h2>
             {subtitle && <p className="text-xs text-text-muted mt-1">{subtitle}</p>}
@@ -45,9 +45,9 @@ export default function Modal({ title, subtitle, large, onClose, children, foote
             </svg>
           </button>
         </div>
-        <div className="px-6 py-5">{children}</div>
+        <div className="px-4 sm:px-6 py-4 sm:py-5">{children}</div>
         {footer && (
-          <div className="px-6 py-3 border-t border-white/[0.06] flex justify-end gap-2 bg-deep-navy/40 rounded-b-2xl">
+          <div className="px-4 sm:px-6 py-3 border-t border-white/[0.06] flex flex-wrap justify-end gap-2 bg-deep-navy/40 sm:rounded-b-2xl">
             {footer}
           </div>
         )}

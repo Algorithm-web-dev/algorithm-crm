@@ -22,11 +22,11 @@ export default async function ContactsPage() {
 
   return (
     <>
-      <div className="flex items-center gap-3 px-5 py-3 border-b border-white/[0.06]">
-        <h1 className="text-2xl font-extrabold tracking-tight">Contacts</h1>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 sm:px-5 py-3 border-b border-white/[0.06]">
+        <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight">Contacts</h1>
         <span className="text-xs text-text-muted">Qualified people</span>
       </div>
-      <div className="flex-1 overflow-auto p-5">
+      <div className="flex-1 overflow-auto p-3 sm:p-5">
         {((contacts as Contact[]) ?? []).length === 0 ? (
           <div className="text-center py-20 text-text-muted">
             <p className="text-2xl font-extrabold text-text-primary mb-2">No contacts yet</p>
@@ -35,7 +35,8 @@ export default async function ContactsPage() {
             </p>
           </div>
         ) : (
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto">
+          <table className="w-full min-w-[560px] text-sm">
             <thead>
               <tr className="text-left text-xs font-mono uppercase tracking-wider text-text-muted border-b border-white/[0.06]">
                 <th className="py-2 px-3">Name</th>
@@ -58,6 +59,7 @@ export default async function ContactsPage() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
     </>

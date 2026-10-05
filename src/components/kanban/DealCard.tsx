@@ -73,13 +73,14 @@ export default function DealCard({ deal, contacts, companies, profiles, onClick,
           </div>
         </div>
         {early ? (
-          <div className="text-right">
+          // source tag is secondary — dropped on mid-size screens where columns are narrow
+          <div className="text-right md:hidden 3xl:block">
             <div className="font-mono text-[9px] uppercase tracking-[0.1em] text-accent font-medium">
               {deal.source || '—'}
             </div>
           </div>
         ) : (
-          <div className="text-right">
+          <div className="text-right flex-shrink-0">
             <div className="text-[14px] font-extrabold tabular-nums leading-none">
               {fmtCurrency(annual, deal.currency)}
             </div>

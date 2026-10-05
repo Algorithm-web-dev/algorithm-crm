@@ -27,11 +27,11 @@ export default async function AutomationsPage() {
   return (
     <>
       <Toaster />
-      <div className="flex items-center gap-3 px-5 py-3 border-b border-white/[0.06]">
-        <h1 className="text-2xl font-extrabold tracking-tight">Automations</h1>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 sm:px-5 py-3 border-b border-white/[0.06]">
+        <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight">Automations</h1>
         <span className="text-xs text-text-muted">Deal stage alerts</span>
       </div>
-      <div className="flex-1 overflow-auto p-5">
+      <div className="flex-1 overflow-auto p-3 sm:p-5">
         <div className="max-w-3xl space-y-5">
           <div className="bg-slate-light border border-white/[0.06] rounded-2xl p-6">
             <h2 className="text-lg font-extrabold mb-1">Deal stage alerts</h2>
@@ -77,7 +77,7 @@ export default async function AutomationsPage() {
               <code className="text-text-sub">config/stage-probabilities.json</code> — changes are made by a developer
               and go live on the next deploy.
             </p>
-            <div className="grid grid-cols-4 gap-2 mb-4">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
               {DEAL_STAGES.map((s) => (
                 <div key={s.id} className="bg-deep-navy border border-white/[0.06] rounded-lg px-3 py-2">
                   <div className="font-mono text-[10px] tracking-[0.15em]" style={{ color: s.color }}>
