@@ -32,6 +32,7 @@ import DealCard from './DealCard';
 import DealModal from '@/components/forms/DealModal';
 import PromoteModal from '@/components/forms/PromoteModal';
 import LossModal from '@/components/forms/LossModal';
+import ClosedDealModal from '@/components/forms/ClosedDealModal';
 import Toaster, { toast } from '@/components/ui/Toaster';
 
 interface Props {
@@ -59,10 +60,17 @@ export default function DealsView({
   const [companies, setCompanies] = useState<Company[]>(initialCompanies);
 
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
-  // Opened via /deals?deal=<id> (e.g. from a notification)
-  const [editingDeal, setEditingDeal] = useState<Deal | null>(
-    () => (openDealId && initialDeals.find((d) => d.id === openDealId)) || null,
-  );
+  // Opened via /deals?deal=<id> (e.g. from a notification). Closed deals open
+  // as a read-only summary; open deals go straight to the edit form.
+  const linkedDeal = (openDealId && initialDeals.find((d) => d.id === openDealId)) || null;
+  const linkedIsClosed = linkedDeal?.deal_stage === 'won' || linkedDeal?.deal_stage === 'lost';
+  const [editingDeal, setEditingDeal] = useState<Deal | null>(linkedIsClosed ? null : linkedDeal);
+  const [viewingClosed, setViewingClosed] = useState<Deal | null>(linkedIsClosed ? linkedDeal : null);
+
+  function openDeal(d: Deal) {
+    if (d.deal_stage === 'won' || d.deal_stage === 'lost') setViewingClosed(d);
+    else setEditingDeal(d);
+  }
   const [creating, setCreating] = useState(false);
   const [promoting, setPromoting] = useState<{ deal: Deal; newStage: DealStageId } | null>(null);
   const [marking_lost, setMarkingLost] = useState<Deal | null>(null);
@@ -216,7 +224,7 @@ export default function DealsView({
                   contacts={contacts}
                   companies={companies}
                   profiles={profiles}
-                  onCardClick={(d) => setEditingDeal(d)}
+                  onCardClick={openDeal}
                 />
               );
             })}
@@ -224,7 +232,7 @@ export default function DealsView({
             <LostColumn
               deals={deals.filter((d) => d.deal_stage === 'lost')}
               contacts={contacts}
-              onCardClick={(d) => setEditingDeal(d)}
+              onCardClick={openDeal}
             />
           </div>
           <DragOverlay>
@@ -255,6 +263,33 @@ export default function DealsView({
             else onDealCreated(d);
             setCreating(false);
             setEditingDeal(null);
+            if (openDealId) router.replace('/deals');
+          }}
+        />
+      )}
+
+      {viewingClosed && (
+        <ClosedDealModal
+          deal={viewingClosed}
+          companies={companies}
+          contacts={contacts}
+          profiles={profiles}
+          isDirector={!!profile?.is_director}
+          onClose={() => {
+            setViewingClosed(null);
+            if (openDealId) router.replace('/deals');
+          }}
+          onEdit={() => {
+            setEditingDeal(viewingClosed);
+            setViewingClosed(null);
+          }}
+          onUpdated={(d) => {
+            onDealUpdated(d);
+            setViewingClosed(null);
+          }}
+          onDeleted={(id) => {
+            setDeals((prev) => prev.filter((d) => d.id !== id));
+            setViewingClosed(null);
             if (openDealId) router.replace('/deals');
           }}
         />

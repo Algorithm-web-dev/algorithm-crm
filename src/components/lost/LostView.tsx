@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client';
 import { toast } from '@/components/ui/Toaster';
 import Toaster from '@/components/ui/Toaster';
 import { cn } from '@/lib/utils';
+import DeleteDealModal from '@/components/forms/DeleteDealModal';
 
 interface Props {
   initialDeals: Deal[];
@@ -26,6 +27,8 @@ const REASON_COLORS: Record<string, string> = {
 export default function LostView({ initialDeals, contacts, companies, profile }: Props) {
   const [deals, setDeals] = useState<Deal[]>(initialDeals);
   const [reopening, setReopening] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<Deal | null>(null);
+  const isDirector = !!profile?.is_director;
   const [filterReason, setFilterReason] = useState<string>('all');
 
   const currency = profile?.default_currency || 'ZAR';
@@ -80,6 +83,16 @@ export default function LostView({ initialDeals, contacts, companies, profile }:
   return (
     <>
       <Toaster />
+      {deleting && (
+        <DeleteDealModal
+          deal={deleting}
+          onClose={() => setDeleting(null)}
+          onDeleted={(id) => {
+            setDeals((prev) => prev.filter((d) => d.id !== id));
+            setDeleting(null);
+          }}
+        />
+      )}
       <div className="flex items-center justify-between px-5 py-3 border-b border-white/[0.06]">
         <div className="flex items-center gap-3">
           <h1 className="text-2xl font-extrabold tracking-tight">Lost</h1>
@@ -197,6 +210,14 @@ export default function LostView({ initialDeals, contacts, companies, profile }:
                           >
                             {reopening === deal.id ? 'Reopening…' : 'Reopen'}
                           </button>
+                          {isDirector && (
+                            <button
+                              onClick={() => setDeleting(deal)}
+                              className="ml-2 text-xs font-medium text-priority-high hover:text-priority-high/80 transition-colors px-3 py-1.5 rounded-lg border border-priority-high/20 hover:border-priority-high/40"
+                            >
+                              Delete
+                            </button>
+                          )}
                         </td>
                       </tr>
                     );

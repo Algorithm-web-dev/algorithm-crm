@@ -76,6 +76,7 @@ export interface Profile {
   email: string;
   full_name: string | null;
   default_currency: Currency;
+  is_director?: boolean; // can delete deals (set in Supabase, see migration 006)
   created_at: string;
 }
 
@@ -165,7 +166,7 @@ export interface Notification {
   id: string;
   user_id: string;
   deal_id: string | null;
-  kind: 'stalled' | 'stage_entered';
+  kind: 'stalled' | 'stage_entered' | 'deleted';
   title: string;
   body: string | null;
   created_at: string;

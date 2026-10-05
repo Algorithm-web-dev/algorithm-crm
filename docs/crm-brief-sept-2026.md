@@ -159,6 +159,24 @@ Filters: add `&status=open` (active deals only), `won`, or `lost`. Add `&format=
 
 ---
 
+## Follow-up: closed deals, director deletes, richer Lost alerts
+
+Agreed with Ashlin after go-live:
+
+- **Opening a Won or Lost deal** shows a read-only summary: owner, loss reason, company, contact, value and close date. Changes are now deliberate actions:
+  - **Edit** (Won and Lost): opens the full form, for corrections.
+  - **Reopen** (Lost): choose the stage to reopen into. A deal with no company can only reopen as a lead (Inbox or Qualifying).
+  - **Delete** (Lost, **directors only**): permanent. You confirm by typing the deal name. Directors also get a Delete button on the Lost page.
+- **Who is a director** is set in Supabase. Users can't make themselves directors, and the database itself blocks deletes by anyone else:
+  ```sql
+  update profiles set is_director = true
+  where email in ('jamie@algorithm.agency', 'simon@algorithm.agency');
+  ```
+- **Deleting a deal alerts everyone**, in-app and in Google Chat: "🗑️ *Deal* was deleted by Jamie · Deal owner: … · Was in: Lost".
+- **Lost alerts include the reason**: "🔴 *Deal* moved to Lost · Deal owner: Ashlin · Reason: Price". Won alerts use 🏆.
+
+Run `supabase/migrations/006_directors_delete_and_lost_reason.sql` **before** deploying this change, then mark the directors.
+
 ## Go-live steps (for the developer)
 
 Follow this order. The database change is compatible with the version currently live, so running it first is safe.
