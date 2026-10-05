@@ -129,6 +129,8 @@ Every alert names the deal owner. Alerts appear on the **Notifications** page (u
 
 **Google Chat:** if a webhook URL is saved in `integration_settings` (see `supabase/migrations/004_google_chat_alerts.sql`), alerts are also posted to the CRM directors' Google Chat space. On-entry alerts post instantly from the trigger via `pg_net`. Stalled alerts post as one batched message from the daily cron. Test the connection from the Automations page.
 
+**Directors & deletes:** only profiles with `is_director = true` can delete deals; this is enforced by RLS (migration 006). Set it in the SQL editor. Deleting a deal notifies everyone and posts to Google Chat.
+
 If `RESEND_API_KEY` and `ALERT_EMAIL_FROM` are set, the daily cron also emails each user a digest of their un-emailed notifications from the last 7 days.
 
 ---

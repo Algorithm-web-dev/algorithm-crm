@@ -57,7 +57,13 @@ export default function NotificationsView({ initial }: { initial: Notification[]
                 <span
                   className={cn(
                     'mt-1.5 w-2 h-2 rounded-full flex-shrink-0',
-                    n.read_at ? 'bg-transparent' : n.kind === 'stalled' ? 'bg-priority-medium' : 'bg-accent',
+                    n.read_at
+                      ? 'bg-transparent'
+                      : n.kind === 'stalled'
+                      ? 'bg-priority-medium'
+                      : n.kind === 'deleted'
+                      ? 'bg-priority-high'
+                      : 'bg-accent',
                   )}
                 />
                 <div className="flex-1 min-w-0">
@@ -66,7 +72,7 @@ export default function NotificationsView({ initial }: { initial: Notification[]
                 </div>
                 <div className="text-right flex-shrink-0">
                   <div className="font-mono text-[9px] uppercase tracking-[0.1em] text-text-muted">
-                    {n.kind === 'stalled' ? 'Stalled' : 'Stage change'}
+                    {n.kind === 'stalled' ? 'Stalled' : n.kind === 'deleted' ? 'Deleted' : 'Stage change'}
                   </div>
                   <div className="text-[10px] text-text-muted mt-0.5">{relTime(n.created_at)}</div>
                 </div>
