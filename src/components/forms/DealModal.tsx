@@ -20,6 +20,7 @@ import { createClient } from '@/lib/supabase/client';
 import Modal from '@/components/ui/Modal';
 import { Input, Select, Textarea, Label, Button, PriorityPicker } from '@/components/ui/Form';
 import { toast } from '@/components/ui/Toaster';
+import { cn } from '@/lib/utils';
 
 interface Props {
   deal: Deal | null;
@@ -34,6 +35,12 @@ interface Props {
 }
 
 const NEW_COMPANY = '__new__';
+// New deals start in an open stage (Won/Lost are reached by moving a deal)
+const OPEN_STAGES = DEAL_STAGES.filter((s) => s.id !== 'won' && s.id !== 'lost');
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return <h3 className="font-mono text-[10px] font-semibold tracking-[0.15em] uppercase text-accent">{children}</h3>;
+}
 
 export default function DealModal({
   deal,
@@ -73,6 +80,7 @@ export default function DealModal({
   const [expectedClose, setExpectedClose] = useState(deal?.expected_close_date || '');
 
   const [loading, setLoading] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
 
   const early = isEarlyStage(stage);
   const isLost = stage === 'lost';
@@ -83,6 +91,7 @@ export default function DealModal({
   const companyRequired = !leadLayout && !isLost;
 
   async function handleSave() {
+    setSubmitted(true);
     if (!name.trim()) {
       toast('Deal name required', 'error');
       return;
@@ -232,23 +241,244 @@ export default function DealModal({
     onSaved(saved);
   }
 
+  const linkedFields = (
+    <>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+        <div>
+          <Label required={companyRequired}>Company</Label>
+          <Select value={companyId} onChange={(e) => setCompanyId(e.target.value)}>
+            <option value="">{companyRequired ? 'Select company…' : 'No company'}</option>
+            <option value={NEW_COMPANY}>+ Create new company…</option>
+            {[...companies]
+              .sort((a, b) => a.name.localeCompare(b.name))
+              .map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+          </Select>
+          {companyId === NEW_COMPANY && (
+            <Input
+              className="mt-2"
+              value={newCompanyName}
+              onChange={(e) => setNewCompanyName(e.target.value)}
+              placeholder="New company name"
+            />
+          )}
+        </div>
+        <div>
+          <Label>Primary contact</Label>
+          <Select value={contactId} onChange={(e) => setContactId(e.target.value)}>
+            <option value="">Select contact…</option>
+            {contacts
+              .filter((c) => !companyId || companyId === NEW_COMPANY || c.company_id === companyId)
+              .map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.first_name} {c.last_name}
+                </option>
+              ))}
+          </Select>
+        </div>
+      </div>
+
+      <h3 className="font-mono text-xs font-semibold text-text-muted mb-3 mt-4 uppercase tracking-wider">
+        Value
+      </h3>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
+        <div>
+          <Label>Monthly</Label>
+          <Input
+            type="number"
+            min="0"
+            value={monthlyValue}
+            onChange={(e) => setMonthlyValue(e.target.value)}
+          />
+        </div>
+        <div>
+          <Label>One-off</Label>
+          <Input
+            type="number"
+            min="0"
+            value={oneOffValue}
+            onChange={(e) => setOneOffValue(e.target.value)}
+          />
+        </div>
+        <div>
+          <Label>Currency</Label>
+          <Select value={currency} onChange={(e) => setCurrency(e.target.value as Currency)}>
+            {CURRENCIES.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </Select>
+        </div>
+      </div>
+      <div>
+        <Label>Expected close</Label>
+        <Input
+          type="date"
+          value={expectedClose}
+          onChange={(e) => setExpectedClose(e.target.value)}
+        />
+      </div>
+    </>
+  );
+
+  const footer = (
+    <>
+      <Button variant="secondary" onClick={onClose}>
+        Cancel
+      </Button>
+      <Button variant="primary" onClick={handleSave} disabled={loading}>
+        {loading ? 'Saving…' : isEdit ? 'Save' : 'Create Deal'}
+      </Button>
+    </>
+  );
+
+  // New Deal: two panels (deal on the left, prospect / linked records on the right)
+  if (!isEdit) {
+    return (
+      <Modal title="New Deal" size="xl" onClose={onClose} footer={footer}>
+        <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))' }}>
+          <div className="p-4 sm:p-6 flex flex-col gap-4">
+            <SectionLabel>Deal</SectionLabel>
+            <div>
+              <Label required>Deal name</Label>
+              <Input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="e.g. Acme — Website Rebuild"
+                autoFocus
+                className={cn(submitted && !name.trim() && '!border-priority-high')}
+              />
+              <p className="text-xs text-text-muted mt-1">
+                For early stages, this can be just the prospect or company name.
+              </p>
+            </div>
+            <div>
+              <Label>Stage</Label>
+              <div className="flex flex-wrap gap-1.5">
+                {OPEN_STAGES.map((s) => {
+                  const selected = stage === s.id;
+                  return (
+                    <button
+                      key={s.id}
+                      type="button"
+                      onClick={() => setStage(s.id)}
+                      aria-pressed={selected}
+                      style={selected ? { background: `${s.color}26`, borderColor: s.color } : undefined}
+                      className={cn(
+                        'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-medium transition-colors',
+                        selected ? 'text-text-primary' : 'border-white/10 text-text-sub hover:text-text-primary',
+                      )}
+                    >
+                      <span className="w-[7px] h-[7px] rounded-full" style={{ background: s.color }} />
+                      {s.name}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <div>
+              <Label>Source</Label>
+              <div className="flex flex-wrap gap-1.5">
+                {DEAL_SOURCES.map((src) => (
+                  <button
+                    key={src}
+                    type="button"
+                    onClick={() => setSource(src)}
+                    aria-pressed={source === src}
+                    className={cn(
+                      'px-2.5 py-1 rounded-full border text-xs font-medium transition-colors',
+                      source === src
+                        ? 'bg-accent/[0.12] border-accent/50 text-text-primary'
+                        : 'border-white/10 text-text-sub hover:text-text-primary',
+                    )}
+                  >
+                    {src}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {/* stacked: three priority pills don't fit beside the owner select at this width */}
+            <div className="grid grid-cols-1 gap-4">
+              <div>
+                <Label required>Deal owner</Label>
+                <Select value={dealOwnerId} onChange={(e) => setDealOwnerId(e.target.value)}>
+                  {!dealOwnerId && <option value="">Select owner…</option>}
+                  {profiles.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {profileName(p)}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+              <div>
+                <Label>Priority</Label>
+                <PriorityPicker value={priority} onChange={setPriority} />
+              </div>
+            </div>
+          </div>
+
+          <div className="p-4 sm:p-6 bg-slate border-t sm:border-t-0 sm:border-l border-white/[0.06] flex flex-col gap-4">
+            {early ? (
+              <>
+                <div className="flex items-baseline justify-between gap-2">
+                  <SectionLabel>Prospect</SectionLabel>
+                  <span className="text-[11px] text-text-muted">Early stage · optional</span>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label>First name</Label>
+                    <Input value={leadFirstName} onChange={(e) => setLeadFirstName(e.target.value)} />
+                  </div>
+                  <div>
+                    <Label>Last name</Label>
+                    <Input value={leadLastName} onChange={(e) => setLeadLastName(e.target.value)} />
+                  </div>
+                </div>
+                <div>
+                  <Label>Email</Label>
+                  <Input type="email" value={leadEmail} onChange={(e) => setLeadEmail(e.target.value)} />
+                </div>
+                <div>
+                  <Label>Company name</Label>
+                  <Input value={leadCompanyName} onChange={(e) => setLeadCompanyName(e.target.value)} />
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="flex items-baseline justify-between gap-2">
+                  <SectionLabel>Linked records</SectionLabel>
+                  <span className="text-[11px] text-text-muted">Required from Discovery on</span>
+                </div>
+                <div>{linkedFields}</div>
+              </>
+            )}
+            <div className="flex-1 flex flex-col">
+              <Label>Notes</Label>
+              <Textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="Context, sub-scope, internal notes…"
+                className="flex-1"
+              />
+            </div>
+          </div>
+        </div>
+      </Modal>
+    );
+  }
+
   return (
     <Modal
-      title={isEdit ? 'Edit Deal' : 'New Deal'}
+      title="Edit Deal\"
       large
       onClose={onClose}
-      footer={
-        <>
-          <Button variant="secondary" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button variant="primary" onClick={handleSave} disabled={loading}>
-            {loading ? 'Saving…' : isEdit ? 'Save' : 'Create Deal'}
-          </Button>
-        </>
-      }
+      footer={footer}
     >
-      <div className="grid grid-cols-2 gap-3 mb-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
         <div>
           <Label>Stage</Label>
           <Select value={stage} onChange={(e) => setStage(e.target.value as DealStageId)}>
@@ -271,7 +501,7 @@ export default function DealModal({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 mb-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
         <div>
           <Label required>Deal owner</Label>
           <Select value={dealOwnerId} onChange={(e) => setDealOwnerId(e.target.value)}>
@@ -317,7 +547,7 @@ export default function DealModal({
           <h3 className="font-mono text-xs font-semibold text-text-muted mb-3 uppercase tracking-wider">
             {early ? 'Prospect info (early stage)' : 'Prospect info'}
           </h3>
-          <div className="grid grid-cols-2 gap-3 mb-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
             <div>
               <Label>First name</Label>
               <Input value={leadFirstName} onChange={(e) => setLeadFirstName(e.target.value)} />
@@ -327,7 +557,7 @@ export default function DealModal({
               <Input value={leadLastName} onChange={(e) => setLeadLastName(e.target.value)} />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <Label>Email</Label>
               <Input type="email" value={leadEmail} onChange={(e) => setLeadEmail(e.target.value)} />
@@ -346,85 +576,7 @@ export default function DealModal({
           <h3 className="font-mono text-xs font-semibold text-text-muted mb-3 uppercase tracking-wider">
             Linked records
           </h3>
-          <div className="grid grid-cols-2 gap-3 mb-3">
-            <div>
-              <Label required={companyRequired}>Company</Label>
-              <Select value={companyId} onChange={(e) => setCompanyId(e.target.value)}>
-                <option value="">{companyRequired ? 'Select company…' : 'No company'}</option>
-                <option value={NEW_COMPANY}>+ Create new company…</option>
-                {[...companies]
-                  .sort((a, b) => a.name.localeCompare(b.name))
-                  .map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-              </Select>
-              {companyId === NEW_COMPANY && (
-                <Input
-                  className="mt-2"
-                  value={newCompanyName}
-                  onChange={(e) => setNewCompanyName(e.target.value)}
-                  placeholder="New company name"
-                />
-              )}
-            </div>
-            <div>
-              <Label>Primary contact</Label>
-              <Select value={contactId} onChange={(e) => setContactId(e.target.value)}>
-                <option value="">Select contact…</option>
-                {contacts
-                  .filter((c) => !companyId || companyId === NEW_COMPANY || c.company_id === companyId)
-                  .map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.first_name} {c.last_name}
-                    </option>
-                  ))}
-              </Select>
-            </div>
-          </div>
-
-          <h3 className="font-mono text-xs font-semibold text-text-muted mb-3 mt-4 uppercase tracking-wider">
-            Value
-          </h3>
-          <div className="grid grid-cols-3 gap-3 mb-3">
-            <div>
-              <Label>Monthly</Label>
-              <Input
-                type="number"
-                min="0"
-                value={monthlyValue}
-                onChange={(e) => setMonthlyValue(e.target.value)}
-              />
-            </div>
-            <div>
-              <Label>One-off</Label>
-              <Input
-                type="number"
-                min="0"
-                value={oneOffValue}
-                onChange={(e) => setOneOffValue(e.target.value)}
-              />
-            </div>
-            <div>
-              <Label>Currency</Label>
-              <Select value={currency} onChange={(e) => setCurrency(e.target.value as Currency)}>
-                {CURRENCIES.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </Select>
-            </div>
-          </div>
-          <div>
-            <Label>Expected close</Label>
-            <Input
-              type="date"
-              value={expectedClose}
-              onChange={(e) => setExpectedClose(e.target.value)}
-            />
-          </div>
+          {linkedFields}
         </div>
       )}
 

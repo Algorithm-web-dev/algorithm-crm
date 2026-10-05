@@ -51,7 +51,7 @@ export default function StageAlertsEditor({ initialRules }: Props) {
 
   return (
     <div className="space-y-3">
-      <div className="grid grid-cols-[1fr_150px_110px] gap-4 px-4 font-mono text-[10px] uppercase tracking-wider text-text-muted">
+      <div className="grid grid-cols-[1fr_96px_52px] sm:grid-cols-[1fr_150px_110px] gap-3 sm:gap-4 px-3 sm:px-4 font-mono text-[10px] uppercase tracking-wider text-text-muted">
         <span>Stage</span>
         <span>Stalled after</span>
         <span className="text-right">On entry</span>
@@ -67,7 +67,7 @@ export default function StageAlertsEditor({ initialRules }: Props) {
           <div
             key={stage.id}
             className={cn(
-              'grid grid-cols-[1fr_150px_110px] gap-4 items-center p-4 rounded-lg border transition',
+              'grid grid-cols-[1fr_96px_52px] sm:grid-cols-[1fr_150px_110px] gap-3 sm:gap-4 items-center p-3 sm:p-4 rounded-lg border transition',
               stallOn || rule.notify_on_entry ? 'bg-deep-navy border-white/10' : 'bg-deep-navy/40 border-white/[0.04]',
             )}
           >
@@ -104,7 +104,7 @@ export default function StageAlertsEditor({ initialRules }: Props) {
                       }
                       if (val !== rule.stall_days) save(stage.id, { stall_days: val });
                     }}
-                    className="w-20 text-center tabular-nums"
+                    className="w-14 sm:w-20 text-center tabular-nums px-1 sm:px-3"
                   />
                   <span className="text-xs text-text-muted">days</span>
                 </>
@@ -123,7 +123,7 @@ export default function StageAlertsEditor({ initialRules }: Props) {
               >
                 <span
                   className={cn(
-                    'absolute top-0.5 w-5 h-5 rounded-full bg-white transition-transform',
+                    'absolute top-0.5 left-0 w-5 h-5 rounded-full bg-white transition-transform',
                     rule.notify_on_entry ? 'translate-x-[18px]' : 'translate-x-0.5',
                   )}
                 />

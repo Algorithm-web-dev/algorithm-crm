@@ -6,10 +6,17 @@ import { createClient } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils';
 import { initialsOf } from '@/types';
 
+export type SidebarMode = 'auto' | 'expanded' | 'collapsed';
+
 interface SidebarProps {
   userName: string;
   userEmail: string;
   unreadCount: number;
+  lostCount: number;
+  // auto = icon rail on laptops, full width on large monitors (≥1800px)
+  mode: SidebarMode;
+  onToggle?: () => void; // desktop collapse/expand
+  onClose?: () => void; // mobile drawer
 }
 
 const NAV = [
@@ -37,7 +44,7 @@ const NAV = [
   },
 ];
 
-export default function Sidebar({ userName, userEmail, unreadCount }: SidebarProps) {
+export default function Sidebar({ userName, userEmail, unreadCount, lostCount, mode, onToggle, onClose }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
 
@@ -50,61 +57,121 @@ export default function Sidebar({ userName, userEmail, unreadCount }: SidebarPro
 
   const initials = initialsOf(userName.split(' ')[0], userName.split(' ')[1] ?? '');
 
+  // Labels/headings: always shown when expanded, never in the icon rail,
+  // and from 3xl (≥1800px) up in auto mode.
+  const label = mode === 'expanded' ? '' : mode === 'collapsed' ? 'hidden' : 'hidden 3xl:block';
+  const railOnly = mode === 'expanded' ? 'hidden' : mode === 'collapsed' ? '' : '3xl:hidden';
+  const width = mode === 'expanded' ? 'w-[220px]' : mode === 'collapsed' ? 'w-16' : 'w-16 3xl:w-[220px]';
+
   return (
-    <aside className="bg-deep-navy border-r border-white/[0.06] flex flex-col py-4 px-3">
+    <aside
+      className={cn(
+        'h-full bg-deep-navy border-r border-white/[0.06] flex flex-col py-4 px-3 flex-shrink-0 transition-[width] duration-200',
+        width,
+      )}
+    >
       <div className="flex items-center gap-2 px-2 pb-6">
-        <div className="w-6 h-6 rounded-md bg-brand-gradient flex items-center justify-center text-deep-navy font-extrabold text-sm">
+        <div className="w-6 h-6 rounded-md bg-brand-gradient flex items-center justify-center text-deep-navy font-extrabold text-sm flex-shrink-0">
           A
         </div>
-        <div className="font-bold text-base tracking-tight">
+        <div className={cn('font-bold text-base tracking-tight whitespace-nowrap', label)}>
           Algorithm<span className="text-text-muted font-normal"> CRM</span>
         </div>
+        {onClose && (
+          <button onClick={onClose} className="ml-auto p-1 text-text-muted hover:text-text-primary" aria-label="Close menu">
+            <CloseIcon className="w-4 h-4" />
+          </button>
+        )}
       </div>
 
-      {NAV.map((section) => (
-        <div key={section.label} className="mb-4">
-          <div className="font-mono text-[9px] font-semibold tracking-[0.2em] text-text-muted px-2 mb-2">
-            {section.label.toUpperCase()}
+      <nav className="flex-1 overflow-y-auto overflow-x-hidden flex flex-col gap-[18px]">
+        {NAV.map((section) => (
+          <div key={section.label}>
+            <div className={cn('font-mono text-[9px] font-semibold tracking-[0.2em] text-text-muted px-2 mb-2', label)}>
+              {section.label.toUpperCase()}
+            </div>
+            <div className={cn('border-t border-white/[0.06] mx-2 mb-2', railOnly)} />
+            {section.items.map((item) => {
+              const Icon = item.icon;
+              const active = pathname.startsWith(item.href);
+              const badge = item.href === '/notifications' && unreadCount > 0;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  title={item.name}
+                  onClick={onClose}
+                  className={cn(
+                    'relative flex items-center gap-2 px-2 py-2 rounded-md text-xs font-medium mb-0.5 transition-colors',
+                    active
+                      ? 'bg-accent/10 border border-accent/20 text-text-primary'
+                      : 'border border-transparent text-text-sub hover:bg-white/[0.03] hover:text-text-primary',
+                  )}
+                >
+                  <Icon className={cn('w-4 h-4 flex-shrink-0', active ? 'text-accent' : 'opacity-70')} />
+                  <span className={cn('whitespace-nowrap', label)}>{item.name}</span>
+                  {item.href === '/lost' && lostCount > 0 && (
+                    <span className={cn('ml-auto font-mono text-[10px] text-text-muted', label)}>{lostCount}</span>
+                  )}
+                  {badge && (
+                    <>
+                      <span
+                        className={cn(
+                          'ml-auto font-mono text-[9px] font-semibold bg-accent text-deep-navy px-1.5 py-0.5 rounded-full',
+                          label,
+                        )}
+                      >
+                        {unreadCount > 99 ? '99+' : unreadCount}
+                      </span>
+                      <span className={cn('absolute top-1 left-6 w-2 h-2 rounded-full bg-accent', railOnly)} />
+                    </>
+                  )}
+                </Link>
+              );
+            })}
           </div>
-          {section.items.map((item) => {
-            const Icon = item.icon;
-            const active = pathname.startsWith(item.href);
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={cn(
-                  'flex items-center gap-2 px-2 py-1.5 rounded-md text-xs font-medium mb-0.5 transition-colors',
-                  active
-                    ? 'bg-accent/10 border border-accent/20 text-text-primary'
-                    : 'text-text-sub hover:bg-white/[0.03] hover:text-text-primary',
-                )}
-              >
-                <Icon className={cn('w-3.5 h-3.5', active ? 'text-accent' : 'opacity-70')} />
-                <span>{item.name}</span>
-                {item.href === '/notifications' && unreadCount > 0 && (
-                  <span className="ml-auto font-mono text-[9px] font-semibold bg-accent text-deep-navy px-1.5 py-0.5 rounded-full">
-                    {unreadCount > 99 ? '99+' : unreadCount}
-                  </span>
-                )}
-              </Link>
-            );
-          })}
-        </div>
-      ))}
+        ))}
+      </nav>
 
-      <div className="mt-auto pt-3 border-t border-white/[0.06]">
-        <div className="flex items-center gap-2 px-2 py-1.5 group">
-          <div className="w-7 h-7 rounded-full bg-brand-gradient flex items-center justify-center text-deep-navy font-bold text-[10px] flex-shrink-0">
+      {onToggle && (
+        <button
+          onClick={onToggle}
+          title="Collapse / expand sidebar"
+          aria-label="Collapse or expand sidebar"
+          className="flex items-center gap-2 px-2 py-2 mb-2 rounded-md text-xs text-text-muted hover:text-text-primary hover:bg-white/[0.03]"
+        >
+          <ChevronsIcon className={cn('w-4 h-4 flex-shrink-0 transition-transform', mode === 'expanded' && 'rotate-180', mode === 'auto' && '3xl:rotate-180')} />
+          <span className={cn('whitespace-nowrap', label)}>Collapse</span>
+        </button>
+      )}
+
+      <div className="pt-3 border-t border-white/[0.06]">
+        {/* icon rail stacks avatar + sign-out vertically so sign-out is always reachable */}
+        <div
+          className={cn(
+            'flex items-center gap-2 px-1 py-1.5 group',
+            mode === 'collapsed' && 'flex-col',
+            mode === 'auto' && 'flex-col 3xl:flex-row',
+          )}
+        >
+          <div
+            className="w-7 h-7 rounded-full bg-brand-gradient flex items-center justify-center text-deep-navy font-bold text-[10px] flex-shrink-0"
+            title={`${userName} — ${userEmail}`}
+          >
             {initials}
           </div>
-          <div className="flex-1 min-w-0">
+          <div className={cn('flex-1 min-w-0', label)}>
             <div className="text-xs font-medium text-text-primary truncate">{userName}</div>
             <div className="text-[10px] text-text-muted truncate">{userEmail}</div>
           </div>
           <button
             onClick={handleSignOut}
-            className="text-text-muted hover:text-text-primary p-1 rounded opacity-0 group-hover:opacity-100 transition"
+            className={cn(
+              'text-text-muted hover:text-text-primary p-1 rounded transition',
+              // full sidebar: reveal on hover (as before); rail and drawer: always visible
+              mode === 'expanded' && !onClose && 'opacity-0 group-hover:opacity-100',
+              mode === 'auto' && '3xl:opacity-0 3xl:group-hover:opacity-100',
+            )}
             title="Sign out"
           >
             <SignOutIcon className="w-3.5 h-3.5" />
@@ -115,6 +182,31 @@ export default function Sidebar({ userName, userEmail, unreadCount }: SidebarPro
   );
 }
 
+function ChevronsIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="13 17 18 12 13 7" />
+      <polyline points="6 17 11 12 6 7" />
+    </svg>
+  );
+}
+function CloseIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+      <line x1="18" y1="6" x2="6" y2="18" />
+      <line x1="6" y1="6" x2="18" y2="18" />
+    </svg>
+  );
+}
+export function MenuIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+      <line x1="3" y1="6" x2="21" y2="6" />
+      <line x1="3" y1="12" x2="21" y2="12" />
+      <line x1="3" y1="18" x2="21" y2="18" />
+    </svg>
+  );
+}
 function KanbanIcon({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -162,7 +254,7 @@ function SignOutIcon({ className }: { className?: string }) {
     </svg>
   );
 }
-function BellIcon({ className }: { className?: string }) {
+export function BellIcon({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />

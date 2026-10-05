@@ -4,6 +4,10 @@ const config: Config = {
   content: ["./src/**/*.{js,ts,jsx,tsx,mdx}"],
   theme: {
     extend: {
+      screens: {
+        // large monitors: full sidebar + roomier board (see AppShell / DealsView)
+        "3xl": "1800px",
+      },
       fontFamily: {
         sans: ['"Space Grotesk"', "-apple-system", "BlinkMacSystemFont", "sans-serif"],
         mono: ['"JetBrains Mono"', "ui-monospace", "monospace"],
