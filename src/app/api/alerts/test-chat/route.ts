@@ -19,7 +19,7 @@ export async function POST() {
 
   try {
     await postToGoogleChat(webhookUrl, [
-      `✅ Algorithm CRM is connected to this space — deal alerts will appear here. (Test sent by ${user.email})`,
+      `Algorithm CRM is connected to this space — deal alerts will appear here. (Test sent by ${user.email})`,
     ]);
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 502 });

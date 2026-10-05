@@ -97,7 +97,7 @@ export async function GET(request: NextRequest) {
     else {
       try {
         await postToGoogleChat(chat.webhookUrl, [
-          `⏰ *${chatLines.length} stalled deal${chatLines.length === 1 ? '' : 's'}*`,
+          `*${chatLines.length} stalled deal${chatLines.length === 1 ? '' : 's'}*`,
           ...chatLines,
         ]);
         chatStatus = 'sent';
