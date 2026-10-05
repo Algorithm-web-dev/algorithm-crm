@@ -212,8 +212,21 @@ Agreed by Jamie on 5 Oct 2026:
 1. ✅ **Company stays required for Discovery → Won.** It isn't required for Lost. No change needed; this is how the CRM already works.
 2. ✅ **Existing deals keep their creator as the deal owner.** This backfill was done by migration 003. Individual deals can still be reassigned in Edit Deal.
 3. ✅ **Close probabilities approved as listed:** Inbox 5%, Qualifying 15%, Discovery 25%, Proposal 45%, Negotiation 65%, Verbal 85%, Won 100%, Lost 0%. `config/stage-probabilities.json` is now marked APPROVED (reviewed by Jamie Leigh, 2026-10-05).
+4. ✅ **Alert timings agreed (Jamie, 5 Oct 2026).** They're set in Automations, stored in `stage_alert_rules`:
+
+   | Stage | Stuck alert after | Move alert |
+   |---|---|---|
+   | Inbox | 3 days | No |
+   | Qualifying | 5 days | No |
+   | Discovery | 7 days | No |
+   | Proposal | 7 days | Yes |
+   | Negotiation | 5 days | Yes |
+   | Verbal | 3 days | Yes |
+   | Won | n/a | Yes |
+   | Lost | n/a | Yes |
+
+   Alerts go to the CRM Directors Google Chat space and in-app Notifications.
 
 Still open:
 
-4. Alert cadence for each stage (stalled-after days, and on-entry yes/no), and which Google Chat space the alerts go to.
 5. Export: is the CSV button enough for finance, or do they also want the auto-refreshing Excel link?
