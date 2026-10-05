@@ -1,8 +1,8 @@
 'use client';
 
 import { useDroppable } from '@dnd-kit/core';
-import type { DealStage, Deal, Contact, Company, Profile } from '@/types';
-import { annualisedValue, fmtCurrency } from '@/types';
+import type { DealStage, Deal, Contact, Company, Profile, Currency } from '@/types';
+import { annualisedValue, weightedValue, fmtCurrency, CURRENCY_SYMBOLS } from '@/types';
 import DealCard from './DealCard';
 import { cn } from '@/lib/utils';
 
@@ -13,57 +13,79 @@ interface Props {
   companies: Company[];
   profiles: Profile[];
   onCardClick: (d: Deal) => void;
-  className?: string;
+  onHide?: () => void; // undefined when this is the last visible column
 }
 
-export default function KanbanColumn({ stage, deals, contacts, companies, profiles, onCardClick, className }: Props) {
-  const { setNodeRef, isOver } = useDroppable({ id: stage.id });
+function money(v: number, currency: Currency) {
+  return v > 0 ? fmtCurrency(v, currency) : `${CURRENCY_SYMBOLS[currency]}0`;
+}
 
+export default function KanbanColumn({ stage, deals, contacts, companies, profiles, onCardClick, onHide }: Props) {
+  const { setNodeRef, isOver } = useDroppable({ id: stage.id });
+  const currency = deals[0]?.currency || 'ZAR';
   const total = deals.reduce((s, d) => s + annualisedValue(d), 0);
+
+  let sub: string;
+  if (stage.early) sub = 'unvalued';
+  else if (stage.id === 'won')
+    sub = `${money(deals.reduce((s, d) => s + (Number(d.monthly_value) || 0), 0), currency)}/mo MRR`;
+  else if (stage.id === 'lost') sub = 'closed lost';
+  else sub = `${money(deals.reduce((s, d) => s + weightedValue(d), 0), currency)} weighted · ${stage.prob}%`;
 
   return (
     <div
       ref={setNodeRef}
       className={cn(
-        'flex flex-col bg-navy border rounded-xl overflow-hidden transition-colors',
-        isOver ? 'border-accent bg-accent/5' : 'border-white/[0.06]',
-        className,
+        'border rounded-xl flex flex-col overflow-hidden min-w-0 min-h-0 transition-colors',
+        isOver ? 'bg-slate' : 'bg-navy border-white/[0.06]',
       )}
+      style={isOver ? { borderColor: stage.color } : undefined}
     >
-      <div className="px-3 py-2.5 border-b border-white/[0.06]">
-      <div className="flex items-center gap-2 min-w-0">
-        <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: stage.color }} />
+      <div className="h-[2px] opacity-80 flex-shrink-0" style={{ background: stage.color }} />
+      <div className="px-3.5 py-3 border-b border-white/[0.06] flex flex-wrap items-center gap-x-2 gap-y-1">
         <span
-          className="font-mono text-[10px] font-semibold tracking-[0.15em] truncate"
+          className="font-mono text-[10px] font-semibold tracking-[0.15em] uppercase"
           style={{ color: stage.color }}
         >
-          {stage.name.toUpperCase()}
+          {stage.name}
         </span>
-        <span
-          className="ml-auto font-mono text-[10px] text-text-muted px-1.5 py-0.5 rounded-lg flex-shrink-0"
-          style={{ background: `${stage.color}1a` }}
-        >
-          {deals.length}
-        </span>
+        <span className="font-mono text-[10px] bg-white/5 text-text-sub rounded-md px-1.5">{deals.length}</span>
+        <span className="ml-auto text-[15px] font-bold tabular-nums">{stage.early ? '' : money(total, currency)}</span>
+        {onHide && (
+          <button
+            type="button"
+            onClick={onHide}
+            className="text-text-muted hover:text-text-primary -mr-1 p-0.5 rounded"
+            aria-label={`Hide ${stage.name}`}
+            title={`Hide ${stage.name}`}
+          >
+            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        )}
+        <div className="basis-full font-mono text-[10px] text-text-muted">{sub}</div>
       </div>
-      {/* reserve the line even when empty so column headers stay aligned */}
-      <div className="font-mono text-[10px] text-text-muted mt-1 tabular-nums h-3.5">
-        {total > 0 && `${fmtCurrency(total, deals[0]?.currency || 'ZAR')} total`}
-      </div>
-      </div>
-      <div className="flex-1 overflow-y-auto p-2 flex flex-col gap-1.5">
-        {deals.map((deal) => (
-          <DealCard
-            key={deal.id}
-            deal={deal}
-            contacts={contacts}
-            companies={companies}
-            profiles={profiles}
-            onClick={() => onCardClick(deal)}
-          />
-        ))}
-        {deals.length === 0 && (
-          <div className="text-center py-6 text-[11px] text-text-muted">No deals</div>
+      <div
+        className="flex-1 overflow-y-auto overflow-x-hidden p-2.5 grid gap-2 content-start"
+        style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))' }}
+      >
+        {deals.length === 0 ? (
+          <div className="col-span-full min-h-[120px] border border-dashed border-white/[0.08] rounded-lg flex items-center justify-center text-[11.5px] text-text-muted">
+            Drop deals here
+          </div>
+        ) : (
+          deals.map((deal) => (
+            <DealCard
+              key={deal.id}
+              deal={deal}
+              contacts={contacts}
+              companies={companies}
+              profiles={profiles}
+              onClick={() => onCardClick(deal)}
+            />
+          ))
         )}
       </div>
     </div>

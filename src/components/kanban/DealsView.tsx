@@ -1,14 +1,17 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   DndContext,
   DragOverlay,
   MouseSensor,
   TouchSensor,
+  pointerWithin,
+  rectIntersection,
   useSensor,
   useSensors,
+  type CollisionDetection,
   type DragEndEvent,
   type DragStartEvent,
 } from '@dnd-kit/core';
@@ -21,22 +24,22 @@ import {
   type Profile,
   annualisedValue,
   weightedValue,
-  fmtCurrency,
   fmtCurrencyFull,
   isEarlyStage,
+  isClosedStage,
   daysBetween,
 } from '@/types';
 import { createClient } from '@/lib/supabase/client';
 import KanbanColumn from './KanbanColumn';
-import ClosedLane from './ClosedLane';
-import { useMediaQuery } from '@/lib/useMediaQuery';
-import { cn } from '@/lib/utils';
-import DealCard from './DealCard';
+import StageFilterBar, { STAGE_PRESETS } from './StageFilterBar';
+import { DealCardBody } from './DealCard';
+import DealDrawer from '@/components/deals/DealDrawer';
 import DealModal from '@/components/forms/DealModal';
 import PromoteModal from '@/components/forms/PromoteModal';
 import LossModal from '@/components/forms/LossModal';
 import ClosedDealModal from '@/components/forms/ClosedDealModal';
 import Toaster, { toast } from '@/components/ui/Toaster';
+import { cn } from '@/lib/utils';
 
 interface Props {
   initialDeals: Deal[];
@@ -47,6 +50,18 @@ interface Props {
   currentUserId: string;
   openDealId?: string;
 }
+
+const STORAGE_KEY = 'crm.deals.visibleStages';
+const DEFAULT_VISIBLE = STAGE_PRESETS[0].stages; // Leads
+const STAGE_ORDER = DEAL_STAGES.map((s) => s.id);
+const sortStages = (ids: DealStageId[]) => STAGE_ORDER.filter((id) => ids.includes(id));
+
+// Small targets (stage chips) need pointer-based hit testing; fall back to
+// rectangle overlap so dropping near a column still works.
+const collisionDetection: CollisionDetection = (args) => {
+  const hits = pointerWithin(args);
+  return hits.length ? hits : rectIntersection(args);
+};
 
 export default function DealsView({
   initialDeals,
@@ -61,47 +76,86 @@ export default function DealsView({
   const [deals, setDeals] = useState<Deal[]>(initialDeals);
   const [contacts, setContacts] = useState<Contact[]>(initialContacts);
   const [companies, setCompanies] = useState<Company[]>(initialCompanies);
+  const [visible, setVisible] = useState<DealStageId[]>(DEFAULT_VISIBLE);
 
-  const [activeDragId, setActiveDragId] = useState<string | null>(null);
-  // Opened via /deals?deal=<id> (e.g. from a notification). Closed deals open
-  // as a read-only summary; open deals go straight to the edit form.
-  const linkedDeal = (openDealId && initialDeals.find((d) => d.id === openDealId)) || null;
-  const linkedIsClosed = linkedDeal?.deal_stage === 'won' || linkedDeal?.deal_stage === 'lost';
-  const [editingDeal, setEditingDeal] = useState<Deal | null>(linkedIsClosed ? null : linkedDeal);
-  const [viewingClosed, setViewingClosed] = useState<Deal | null>(linkedIsClosed ? linkedDeal : null);
-
-  function openDeal(d: Deal) {
-    if (d.deal_stage === 'won' || d.deal_stage === 'lost') setViewingClosed(d);
-    else setEditingDeal(d);
+  // Remembered per browser
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
+      if (Array.isArray(saved)) {
+        const valid = sortStages(saved.filter((id): id is DealStageId => STAGE_ORDER.includes(id)));
+        if (valid.length) setVisible(valid);
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+  function updateVisible(next: DealStageId[]) {
+    if (next.length === 0) return; // never hide the last stage
+    const sorted = sortStages(next);
+    setVisible(sorted);
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(sorted));
+    } catch {
+      // ignore
+    }
   }
+  const toggleStage = (id: DealStageId) =>
+    updateVisible(visible.includes(id) ? visible.filter((v) => v !== id) : [...visible, id]);
+
+  // Open deals → drawer; Won/Lost → closed-deal summary. Deep link: /deals?deal=<id>
+  const linked = (openDealId && initialDeals.find((d) => d.id === openDealId)) || null;
+  const [drawerId, setDrawerId] = useState<string | null>(
+    linked && !isClosedStage(linked.deal_stage) ? linked.id : null,
+  );
+  const [viewingClosed, setViewingClosed] = useState<Deal | null>(
+    linked && isClosedStage(linked.deal_stage) ? linked : null,
+  );
+  const [editingDeal, setEditingDeal] = useState<Deal | null>(null);
   const [creating, setCreating] = useState(false);
   const [promoting, setPromoting] = useState<{ deal: Deal; newStage: DealStageId } | null>(null);
-  const [marking_lost, setMarkingLost] = useState<Deal | null>(null);
+  const [markingLost, setMarkingLost] = useState<Deal | null>(null);
+  const [activeDragId, setActiveDragId] = useState<string | null>(null);
 
-  // Mouse: drag after 5px. Touch: long-press (250ms) to drag, so swiping still scrolls the board.
+  // A deal that becomes Won/Lost leaves the drawer
+  const drawerDeal = deals.find((d) => d.id === drawerId && !isClosedStage(d.deal_stage)) || null;
+
+  function openDeal(d: Deal) {
+    if (isClosedStage(d.deal_stage)) setViewingClosed(d);
+    else setDrawerId(d.id);
+  }
+  function clearDeepLink() {
+    if (openDealId) router.replace('/deals');
+  }
+
+  // Mouse: drag after 5px. Touch: long-press (250ms) so swiping still scrolls.
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 8 } }),
   );
-  // Phones: every stage (incl. Won/Lost) is a full-width swipeable column.
-  // Tablet+: Won/Lost are slim lanes pinned to the right of the board.
-  const isPhone = useMediaQuery('(max-width: 767px)');
   const supabase = createClient();
 
-  // Metrics
   const metrics = useMemo(() => {
-    const open = deals.filter((d) => d.deal_stage !== 'won' && d.deal_stage !== 'lost');
+    const open = deals.filter((d) => !isClosedStage(d.deal_stage));
     const qualified = open.filter((d) => !isEarlyStage(d.deal_stage));
-    const totalPipeline = qualified.reduce((s, d) => s + annualisedValue(d), 0);
-    const weighted = qualified.reduce((s, d) => s + weightedValue(d), 0);
-    const earlyCount = open.length - qualified.length;
-    const wonRecent = deals
-      .filter((d) => d.deal_stage === 'won' && (daysBetween(d.actual_close_date) ?? 999) < 30)
-      .reduce((s, d) => s + annualisedValue(d), 0);
-    const activeMRR = deals
-      .filter((d) => d.deal_stage === 'won')
-      .reduce((s, d) => s + (Number(d.monthly_value) || 0), 0);
-    return { totalPipeline, weighted, qualifiedCount: qualified.length, earlyCount, wonRecent, activeMRR };
+    return {
+      totalPipeline: qualified.reduce((s, d) => s + annualisedValue(d), 0),
+      weighted: qualified.reduce((s, d) => s + weightedValue(d), 0),
+      qualifiedCount: qualified.length,
+      earlyCount: open.length - qualified.length,
+      wonRecent: deals
+        .filter((d) => d.deal_stage === 'won' && (daysBetween(d.actual_close_date) ?? 999) < 30)
+        .reduce((s, d) => s + annualisedValue(d), 0),
+      activeMRR: deals
+        .filter((d) => d.deal_stage === 'won')
+        .reduce((s, d) => s + (Number(d.monthly_value) || 0), 0),
+    };
+  }, [deals]);
+
+  const counts = useMemo(() => {
+    const c = Object.fromEntries(STAGE_ORDER.map((id) => [id, 0])) as Record<DealStageId, number>;
+    deals.forEach((d) => c[d.deal_stage]++);
+    return c;
   }, [deals]);
 
   const activeDeal = activeDragId ? deals.find((d) => d.id === activeDragId) : null;
@@ -110,13 +164,18 @@ export default function DealsView({
     setActiveDragId(String(event.active.id));
   }
 
-  async function handleDragEnd(event: DragEndEvent) {
+  function handleDragEnd(event: DragEndEvent) {
     setActiveDragId(null);
     if (!event.over) return;
-    const dealId = String(event.active.id);
-    const newStage = String(event.over.id) as DealStageId;
-    const deal = deals.find((d) => d.id === dealId);
-    if (!deal || deal.deal_stage === newStage) return;
+    const deal = deals.find((d) => d.id === String(event.active.id));
+    // Columns use the stage id; chips use "chip:<stage>"
+    const newStage = String(event.over.id).replace(/^chip:/, '') as DealStageId;
+    if (deal) moveDeal(deal, newStage);
+  }
+
+  // Shared by drag-and-drop and the drawer's "Move to …" button.
+  async function moveDeal(deal: Deal, newStage: DealStageId) {
+    if (deal.deal_stage === newStage) return;
 
     // Lost requires a reason — checked before promotion so a lead can be
     // closed out without first creating Contact/Company records.
@@ -131,61 +190,82 @@ export default function DealsView({
       return;
     }
 
-    // Won — confirm
-    if (newStage === 'won') {
-      if (!confirm(`Mark "${deal.name}" as WON?`)) return;
-    }
+    if (newStage === 'won' && !confirm(`Mark "${deal.name}" as WON?`)) return;
 
-    // Optimistic update
     const patch: Partial<Deal> = {
       deal_stage: newStage,
       last_activity_at: new Date().toISOString(),
     };
-    if (newStage === 'won') patch.actual_close_date = new Date().toISOString().split('T')[0];
+    if (newStage === 'won') {
+      patch.actual_close_date = new Date().toISOString().split('T')[0];
+      patch.loss_reason = null;
+    } else if (isClosedStage(deal.deal_stage)) {
+      // Dragged out of Won/Lost = reopened
+      patch.actual_close_date = null;
+      patch.loss_reason = null;
+    }
 
-    setDeals((prev) => prev.map((d) => (d.id === dealId ? { ...d, ...patch } : d)));
+    setDeals((prev) => prev.map((d) => (d.id === deal.id ? { ...d, ...patch } : d)));
 
-    const { error } = await supabase.from('deals').update(patch).eq('id', dealId);
+    const { error } = await supabase.from('deals').update(patch).eq('id', deal.id);
     if (error) {
-      // rollback
-      setDeals((prev) => prev.map((d) => (d.id === dealId ? deal : d)));
+      setDeals((prev) => prev.map((d) => (d.id === deal.id ? deal : d)));
       toast('Update failed', 'error');
       return;
     }
-    // Activity log
+    const from = DEAL_STAGES.find((s) => s.id === deal.deal_stage)?.name;
+    const to = DEAL_STAGES.find((s) => s.id === newStage)?.name;
     await supabase.from('activities').insert({
       owner_id: deal.owner_id,
       deal_id: deal.id,
       contact_id: deal.primary_contact_id,
       company_id: deal.company_id,
       type: 'stage',
-      title: `Stage → ${DEAL_STAGES.find((s) => s.id === newStage)?.name}`,
-      body: `Moved from ${DEAL_STAGES.find((s) => s.id === deal.deal_stage)?.name}`,
+      title: isClosedStage(deal.deal_stage) ? 'Deal reopened' : `Stage → ${to}`,
+      body: `Moved from ${from}${isClosedStage(deal.deal_stage) ? ` to ${to}` : ''}`,
     });
-    toast(`${deal.name.slice(0, 30)} → ${DEAL_STAGES.find((s) => s.id === newStage)?.name}`, 'success');
+    toast(`${deal.name.slice(0, 30)} → ${to}`, 'success');
   }
 
-  function onDealCreated(d: Deal) {
-    setDeals((prev) => [d, ...prev]);
-  }
   function onDealUpdated(d: Deal) {
     setDeals((prev) => prev.map((x) => (x.id === d.id ? d : x)));
   }
   function onPromoteComplete(updated: { deal: Deal; contact?: Contact; company?: Company }) {
-    setDeals((prev) => prev.map((d) => (d.id === updated.deal.id ? updated.deal : d)));
+    onDealUpdated(updated.deal);
     if (updated.contact) setContacts((prev) => [...prev, updated.contact!]);
     if (updated.company) setCompanies((prev) => [...prev, updated.company!]);
     setPromoting(null);
   }
 
+  const currency = profile?.default_currency || 'ZAR';
+  const visibleStages = DEAL_STAGES.filter((s) => visible.includes(s.id));
+
   return (
     <>
-      {/* TOPBAR */}
-      <div className="flex items-center gap-3 px-3 sm:px-5 py-3 border-b border-white/[0.06]">
-        <div className="flex items-baseline gap-3 min-w-0">
-          <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight">Deals</h1>
-          <span className="hidden sm:inline text-xs text-text-muted truncate">Your unified pipeline</span>
+      {/* HEADER: title · metrics · actions */}
+      <div className="px-3 sm:px-6 py-3.5 border-b border-white/[0.06] flex flex-wrap items-center gap-x-7 gap-y-4">
+        <div>
+          <h1 className="text-2xl font-extrabold tracking-tight leading-none">Deals</h1>
+          <div className="text-[11.5px] text-text-muted mt-1">Your unified pipeline</div>
         </div>
+
+        <div className="order-last w-full grid grid-cols-2 gap-y-3 sm:flex sm:gap-y-0 xl:order-none xl:w-auto">
+          <Metric
+            label="Qualified Pipeline"
+            value={fmtCurrencyFull(metrics.totalPipeline, currency)}
+            sub={`${metrics.qualifiedCount} deals · ${metrics.earlyCount} in early stages`}
+            gradient
+          />
+          <Metric label="Weighted" value={fmtCurrencyFull(metrics.weighted, currency)} sub="By stage probability" />
+          <Metric
+            label="Won 30d"
+            value={fmtCurrencyFull(metrics.wonRecent, currency)}
+            sub="Annualised"
+            highlight="success"
+          />
+          <Metric label="Active MRR" value={fmtCurrencyFull(metrics.activeMRR, currency)} sub="From won retainers" />
+        </div>
+
         <div className="ml-auto flex items-center gap-2">
           <a
             href="/api/export/deals"
@@ -213,67 +293,67 @@ export default function DealsView({
         </div>
       </div>
 
-      {/* METRICS */}
-      <div className="grid grid-cols-2 gap-x-4 gap-y-3 md:flex md:gap-0 px-3 sm:px-5 py-3 md:py-4 border-b border-white/[0.06]">
-        <Metric label="Qualified Pipeline" value={fmtCurrencyFull(metrics.totalPipeline, profile?.default_currency || 'ZAR')} sub={`${metrics.qualifiedCount} deals · ${metrics.earlyCount} in early stages`} gradient />
-        <Metric label="Weighted" value={fmtCurrencyFull(metrics.weighted, profile?.default_currency || 'ZAR')} sub="By stage probability" />
-        <Metric label="Won 30d" value={fmtCurrencyFull(metrics.wonRecent, profile?.default_currency || 'ZAR')} sub="Annualised" highlight="success" />
-        <Metric label="Active MRR" value={fmtCurrencyFull(metrics.activeMRR, profile?.default_currency || 'ZAR')} sub="From won retainers" />
-      </div>
-
-      {/* KANBAN */}
-      <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-        <div className="flex-1 min-h-0 flex gap-2 3xl:gap-2.5 px-3 3xl:px-5 py-3 sm:py-4">
-          {/* Open stages: stretch to fill; scroll sideways only when the screen is too narrow */}
-          <div className="flex-1 min-w-0 overflow-x-auto overflow-y-hidden snap-x snap-mandatory md:snap-none scroll-px-3">
-            <div className="flex gap-2 3xl:gap-2.5 h-full">
-              {DEAL_STAGES.filter((s) => s.id !== 'won' && s.id !== 'lost').map((stage) => (
-                <KanbanColumn
-                  key={stage.id}
-                  stage={stage}
-                  deals={deals.filter((d) => d.deal_stage === stage.id)}
-                  contacts={contacts}
-                  companies={companies}
-                  profiles={profiles}
-                  onCardClick={openDeal}
-                  className={COLUMN_SIZE}
-                />
-              ))}
-              {isPhone &&
-                (['won', 'lost'] as const).map((kind) => (
-                  <ClosedLane
-                    key={kind}
-                    kind={kind}
-                    deals={deals.filter((d) => d.deal_stage === kind)}
-                    profiles={profiles}
-                    onCardClick={openDeal}
-                    className={COLUMN_SIZE}
-                  />
-                ))}
-            </div>
-          </div>
-
-          {/* Closed lanes: always visible on tablet and up */}
-          {!isPhone &&
-            (['won', 'lost'] as const).map((kind) => (
-              <ClosedLane
-                key={kind}
-                kind={kind}
-                deals={deals.filter((d) => d.deal_stage === kind)}
+      {/* FILTER BAR + BOARD (one DndContext so chips are drop targets) */}
+      <DndContext
+        sensors={sensors}
+        collisionDetection={collisionDetection}
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+        onDragCancel={() => setActiveDragId(null)}
+      >
+        <div className="flex-1 min-h-0 overflow-auto px-3 sm:px-6 pt-4 pb-5 flex flex-col gap-3">
+          <StageFilterBar
+            visible={visible}
+            counts={counts}
+            dragging={!!activeDragId}
+            onToggle={toggleStage}
+            onPreset={updateVisible}
+          />
+          <div
+            className="flex-1 min-h-[300px] grid gap-2.5 overflow-x-auto"
+            style={{ gridTemplateColumns: `repeat(${visibleStages.length}, minmax(260px, 1fr))` }}
+          >
+            {visibleStages.map((stage) => (
+              <KanbanColumn
+                key={stage.id}
+                stage={stage}
+                deals={deals.filter((d) => d.deal_stage === stage.id)}
+                contacts={contacts}
+                companies={companies}
                 profiles={profiles}
                 onCardClick={openDeal}
-                className="flex-none w-[132px] 3xl:w-[180px]"
+                onHide={visible.length > 1 ? () => toggleStage(stage.id) : undefined}
               />
             ))}
+          </div>
         </div>
-          <DragOverlay>
-            {activeDeal ? (
-              <DealCard deal={activeDeal} contacts={contacts} companies={companies} profiles={profiles} dragging />
-            ) : null}
-          </DragOverlay>
+        <DragOverlay>
+          {activeDeal ? (
+            <div className="w-[260px] rotate-[1.5deg] cursor-grabbing">
+              <DealCardBody deal={activeDeal} contacts={contacts} companies={companies} profiles={profiles} />
+            </div>
+          ) : null}
+        </DragOverlay>
       </DndContext>
 
-      {/* MODALS */}
+      {/* DRAWER + MODALS */}
+      {drawerDeal && (
+        <DealDrawer
+          deal={drawerDeal}
+          contacts={contacts}
+          companies={companies}
+          profiles={profiles}
+          onClose={() => {
+            setDrawerId(null);
+            clearDeepLink();
+          }}
+          onEdit={() => setEditingDeal(drawerDeal)}
+          onMarkLost={() => setMarkingLost(drawerDeal)}
+          onMove={(to) => moveDeal(drawerDeal, to.id)}
+          onUpdated={onDealUpdated}
+        />
+      )}
+
       {(creating || editingDeal) && (
         <DealModal
           deal={editingDeal}
@@ -281,19 +361,21 @@ export default function DealsView({
           companies={companies}
           profiles={profiles}
           currentUserId={currentUserId}
-          defaultCurrency={profile?.default_currency || 'ZAR'}
+          defaultCurrency={currency}
           onCompanyCreated={(c) => setCompanies((prev) => [...prev, c])}
           onClose={() => {
             setCreating(false);
             setEditingDeal(null);
-            if (openDealId) router.replace('/deals');
           }}
           onSaved={(d) => {
             if (editingDeal) onDealUpdated(d);
-            else onDealCreated(d);
+            else {
+              setDeals((prev) => [d, ...prev]);
+              // make sure the new deal is on screen
+              if (!visible.includes(d.deal_stage)) updateVisible([...visible, d.deal_stage]);
+            }
             setCreating(false);
             setEditingDeal(null);
-            if (openDealId) router.replace('/deals');
           }}
         />
       )}
@@ -307,7 +389,7 @@ export default function DealsView({
           isDirector={!!profile?.is_director}
           onClose={() => {
             setViewingClosed(null);
-            if (openDealId) router.replace('/deals');
+            clearDeepLink();
           }}
           onEdit={() => {
             setEditingDeal(viewingClosed);
@@ -320,7 +402,7 @@ export default function DealsView({
           onDeleted={(id) => {
             setDeals((prev) => prev.filter((d) => d.id !== id));
             setViewingClosed(null);
-            if (openDealId) router.replace('/deals');
+            clearDeepLink();
           }}
         />
       )}
@@ -336,9 +418,9 @@ export default function DealsView({
         />
       )}
 
-      {marking_lost && (
+      {markingLost && (
         <LossModal
-          deal={marking_lost}
+          deal={markingLost}
           onClose={() => setMarkingLost(null)}
           onComplete={(d) => {
             onDealUpdated(d);
@@ -351,12 +433,6 @@ export default function DealsView({
     </>
   );
 }
-
-// Phone: one column per screen width (swipe). Tablet+: share the space, never
-// narrower than 140px — all stages fit from ~1280px wide; below that the open
-// stages scroll sideways while Won/Lost stay pinned.
-const COLUMN_SIZE =
-  'flex-none w-[85vw] max-w-[340px] snap-start md:flex-1 md:w-auto md:max-w-none md:min-w-[140px]';
 
 function Metric({
   label,
@@ -372,12 +448,15 @@ function Metric({
   highlight?: 'success';
 }) {
   return (
-    <div className="min-w-0 md:pr-6 md:mr-6 md:border-r border-white/[0.06] md:last:border-none md:last:mr-0">
-      <div className="font-mono text-[9px] font-semibold tracking-[0.2em] text-text-muted mb-1 uppercase truncate">{label}</div>
+    <div className="min-w-0 sm:px-6 sm:border-l border-white/[0.06] sm:first:pl-0 sm:first:border-l-0 xl:first:pl-6 xl:first:border-l">
+      <div className="font-mono text-[9px] font-semibold tracking-[0.15em] text-text-muted mb-1 uppercase truncate">
+        {label}
+      </div>
       <div
-        className={`text-lg sm:text-xl xl:text-2xl font-extrabold tracking-tight leading-none tabular-nums truncate ${
-          gradient ? 'gradient-text' : highlight === 'success' ? 'text-accent-2' : 'text-text-primary'
-        }`}
+        className={cn(
+          'text-[20px] font-extrabold tracking-tight leading-none tabular-nums truncate',
+          gradient ? 'gradient-text' : highlight === 'success' ? 'text-accent-2' : 'text-text-primary',
+        )}
       >
         {value}
       </div>

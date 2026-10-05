@@ -7,12 +7,15 @@ interface Props {
   title: string;
   subtitle?: string;
   large?: boolean;
+  // xl: 820px wide two-panel layout (New Deal); body padding handled by caller
+  size?: 'xl';
   onClose: () => void;
   children: React.ReactNode;
   footer?: React.ReactNode;
 }
 
-export default function Modal({ title, subtitle, large, onClose, children, footer }: Props) {
+export default function Modal({ title, subtitle, large, size, onClose, children, footer }: Props) {
+  const xl = size === 'xl';
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
@@ -23,14 +26,17 @@ export default function Modal({ title, subtitle, large, onClose, children, foote
 
   return (
     <div
-      className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-0 sm:p-4"
+      className={cn(
+        'fixed inset-0 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-0 sm:p-4',
+        xl ? 'bg-deep-navy/70' : 'bg-black/60',
+      )}
       onClick={onClose}
     >
       <div
         onClick={(e) => e.stopPropagation()}
         className={cn(
-          'bg-slate-light border border-white/[0.06] rounded-t-2xl sm:rounded-2xl shadow-2xl w-full max-h-[92dvh] sm:max-h-[88vh] overflow-y-auto',
-          large ? 'max-w-3xl' : 'max-w-xl',
+          'bg-slate-light border border-white/[0.06] rounded-t-2xl sm:rounded-2xl w-full max-h-[92dvh] sm:max-h-[88vh] overflow-y-auto',
+          xl ? 'max-w-[820px] shadow-glow-blue-lg' : cn('shadow-2xl', large ? 'max-w-3xl' : 'max-w-xl'),
         )}
       >
         <div className="px-4 sm:px-6 py-4 sm:py-5 border-b border-white/[0.06] flex justify-between items-start gap-4">
@@ -45,9 +51,9 @@ export default function Modal({ title, subtitle, large, onClose, children, foote
             </svg>
           </button>
         </div>
-        <div className="px-4 sm:px-6 py-4 sm:py-5">{children}</div>
+        {xl ? children : <div className="px-4 sm:px-6 py-4 sm:py-5">{children}</div>}
         {footer && (
-          <div className="px-4 sm:px-6 py-3 border-t border-white/[0.06] flex flex-wrap justify-end gap-2 bg-deep-navy/40 sm:rounded-b-2xl">
+          <div className={`px-4 sm:px-6 py-3 border-t border-white/[0.06] flex flex-wrap justify-end gap-2 sm:rounded-b-2xl ${xl ? 'bg-slate' : 'bg-deep-navy/40'}`}>
             {footer}
           </div>
         )}

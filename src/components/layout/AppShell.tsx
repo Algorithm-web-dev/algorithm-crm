@@ -9,6 +9,7 @@ interface Props {
   userName: string;
   userEmail: string;
   unreadCount: number;
+  lostCount: number;
   children: React.ReactNode;
 }
 
@@ -18,7 +19,7 @@ const STORAGE_KEY = 'crm.sidebar';
 //  - lg+ (≥1024px): fixed sidebar — icon rail on laptops, full on ≥1800px,
 //    with a toggle that is remembered per browser.
 //  - below lg: top bar with a menu button that opens the sidebar as a drawer.
-export default function AppShell({ userName, userEmail, unreadCount, children }: Props) {
+export default function AppShell({ userName, userEmail, unreadCount, lostCount, children }: Props) {
   const pathname = usePathname();
   const [mode, setMode] = useState<SidebarMode>('auto');
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -46,7 +47,7 @@ export default function AppShell({ userName, userEmail, unreadCount, children }:
     }
   }
 
-  const shared = { userName, userEmail, unreadCount };
+  const shared = { userName, userEmail, unreadCount, lostCount };
 
   return (
     <div className="flex h-[100dvh] overflow-hidden bg-deep-navy">

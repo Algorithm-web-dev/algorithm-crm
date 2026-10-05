@@ -12,6 +12,7 @@ interface SidebarProps {
   userName: string;
   userEmail: string;
   unreadCount: number;
+  lostCount: number;
   // auto = icon rail on laptops, full width on large monitors (≥1800px)
   mode: SidebarMode;
   onToggle?: () => void; // desktop collapse/expand
@@ -43,7 +44,7 @@ const NAV = [
   },
 ];
 
-export default function Sidebar({ userName, userEmail, unreadCount, mode, onToggle, onClose }: SidebarProps) {
+export default function Sidebar({ userName, userEmail, unreadCount, lostCount, mode, onToggle, onClose }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
 
@@ -83,9 +84,9 @@ export default function Sidebar({ userName, userEmail, unreadCount, mode, onTogg
         )}
       </div>
 
-      <nav className="flex-1 overflow-y-auto overflow-x-hidden">
+      <nav className="flex-1 overflow-y-auto overflow-x-hidden flex flex-col gap-[18px]">
         {NAV.map((section) => (
-          <div key={section.label} className="mb-4">
+          <div key={section.label}>
             <div className={cn('font-mono text-[9px] font-semibold tracking-[0.2em] text-text-muted px-2 mb-2', label)}>
               {section.label.toUpperCase()}
             </div>
@@ -109,6 +110,9 @@ export default function Sidebar({ userName, userEmail, unreadCount, mode, onTogg
                 >
                   <Icon className={cn('w-4 h-4 flex-shrink-0', active ? 'text-accent' : 'opacity-70')} />
                   <span className={cn('whitespace-nowrap', label)}>{item.name}</span>
+                  {item.href === '/lost' && lostCount > 0 && (
+                    <span className={cn('ml-auto font-mono text-[10px] text-text-muted', label)}>{lostCount}</span>
+                  )}
                   {badge && (
                     <>
                       <span

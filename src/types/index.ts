@@ -191,6 +191,18 @@ export function getStage(id: DealStageId): DealStage {
   return DEAL_STAGES.find((s) => s.id === id) ?? DEAL_STAGES[0];
 }
 
+// The pipeline in order, without Lost (Inbox → Won).
+export const PIPELINE_STAGES: DealStage[] = DEAL_STAGES.filter((s) => s.id !== 'lost');
+
+export function nextStage(id: DealStageId): DealStage | null {
+  const i = PIPELINE_STAGES.findIndex((s) => s.id === id);
+  return i >= 0 && i < PIPELINE_STAGES.length - 1 ? PIPELINE_STAGES[i + 1] : null;
+}
+
+export function isClosedStage(id: DealStageId): boolean {
+  return id === 'won' || id === 'lost';
+}
+
 export function isEarlyStage(id: DealStageId): boolean {
   return getStage(id).early;
 }

@@ -11,14 +11,30 @@ interface Props {
   companies: Company[];
   profiles: Profile[];
   onClick?: () => void;
-  dragging?: boolean;
 }
 
-export default function DealCard({ deal, contacts, companies, profiles, onClick, dragging }: Props) {
-  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: deal.id });
+// Draggable card on the board.
+export default function DealCard({ onClick, ...props }: Props) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: props.deal.id });
+  return (
+    <div
+      ref={setNodeRef}
+      {...attributes}
+      {...listeners}
+      onClick={() => {
+        if (!isDragging) onClick?.();
+      }}
+      className={cn('min-w-0', isDragging && 'opacity-40')}
+    >
+      <DealCardBody {...props} />
+    </div>
+  );
+}
 
+// Visual card, also used by the DragOverlay (which must not register a second draggable).
+export function DealCardBody({ deal, contacts, companies, profiles }: Omit<Props, 'onClick'>) {
   const company = deal.company_id ? companies.find((c) => c.id === deal.company_id) : null;
-  const companyDisplay = company?.name || deal.lead_company_name || '—';
+  const companyDisplay = company?.name || deal.lead_company_name || deal.name;
   const contact = deal.primary_contact_id ? contacts.find((c) => c.id === deal.primary_contact_id) : null;
   const contactName = contact
     ? `${contact.first_name}${contact.last_name ? ' ' + contact.last_name : ''}`
@@ -27,16 +43,11 @@ export default function DealCard({ deal, contacts, companies, profiles, onClick,
     : null;
   const contactInitials = contact
     ? initialsOf(contact.first_name, contact.last_name)
-    : deal.lead_first_name
-    ? initialsOf(deal.lead_first_name, deal.lead_last_name)
-    : null;
-
-  const ownerName = profileName(profiles.find((p) => p.id === deal.deal_owner_id));
-  const ownerInitials = initialsOf(ownerName.split(' ')[0], ownerName.split(' ')[1]);
+    : initialsOf(deal.lead_first_name, deal.lead_last_name);
+  const owner = profileName(profiles.find((p) => p.id === deal.deal_owner_id));
 
   const early = isEarlyStage(deal.deal_stage);
   const annual = annualisedValue(deal);
-  const daysSinceActivity = daysBetween(deal.last_activity_at);
   const daysInStage = daysBetween(deal.stage_entered_at);
 
   const priorityClass =
@@ -48,88 +59,74 @@ export default function DealCard({ deal, contacts, companies, profiles, onClick,
 
   return (
     <div
-      ref={setNodeRef}
-      {...attributes}
-      {...listeners}
-      onClick={(e) => {
-        // Don't open detail if it's a drag
-        if (!isDragging) onClick?.();
-      }}
       className={cn(
-        'bg-slate-light border border-white/[0.06] rounded-lg px-2.5 py-2.5 cursor-grab transition-all',
-        'border-l-[3px]',
+        'bg-slate-light border border-white/[0.06] border-l-[3px] rounded-[10px] px-3 py-[11px] flex flex-col gap-2.5 cursor-grab',
+        'transition-[background-color,box-shadow] hover:bg-slate-hover hover:shadow-glow-blue',
         priorityClass,
-        'hover:border-white/15 hover:shadow-glow-blue',
-        (isDragging || dragging) && 'opacity-40',
       )}
     >
-      <div className="flex justify-between gap-2 mb-0.5">
+      <div className="flex gap-2 min-w-0">
         <div className="flex-1 min-w-0">
-          <div className="font-semibold text-[12px] text-text-primary leading-tight tracking-tight truncate">
-            {companyDisplay}
-          </div>
-          <div className="text-[11px] text-text-muted leading-tight truncate mt-0.5">
-            {deal.name}
-          </div>
+          <div className="text-[13px] font-semibold text-text-primary leading-tight truncate">{companyDisplay}</div>
+          <div className="text-[11.5px] text-text-muted leading-tight truncate mt-0.5">{deal.name}</div>
         </div>
         {early ? (
-          // source tag is secondary — dropped on mid-size screens where columns are narrow
-          <div className="text-right md:hidden 3xl:block">
-            <div className="font-mono text-[9px] uppercase tracking-[0.1em] text-accent font-medium">
-              {deal.source || '—'}
-            </div>
+          <div className="font-mono text-[9px] uppercase tracking-[0.1em] text-accent font-medium flex-shrink-0 pt-0.5">
+            {deal.source || '—'}
           </div>
         ) : (
           <div className="text-right flex-shrink-0">
-            <div className="text-[14px] font-extrabold tabular-nums leading-none">
-              {fmtCurrency(annual, deal.currency)}
+            <div className="text-[14px] font-extrabold tabular-nums leading-tight">{fmtCurrency(annual, deal.currency)}</div>
+            <div className="font-mono text-[9.5px] text-text-muted mt-0.5">
+              {deal.monthly_value > 0
+                ? `${fmtCurrency(deal.monthly_value, deal.currency)}/mo`
+                : deal.one_off_value > 0
+                ? 'one-off'
+                : ''}
             </div>
-            {deal.monthly_value > 0 && (
-              <div className="font-mono text-[9px] text-text-muted mt-0.5 tabular-nums">
-                {fmtCurrency(deal.monthly_value, deal.currency)}/mo
-              </div>
-            )}
           </div>
         )}
       </div>
 
-      <div className="flex items-center gap-1.5 mt-1.5 pt-1.5 border-t border-dashed border-white/[0.06] text-[10px] text-text-muted">
+      <div className="flex items-center gap-1.5 text-[11px] text-text-sub min-w-0">
         {contactName ? (
           <>
-            <div className="w-4 h-4 rounded-full bg-brand-gradient flex items-center justify-center text-deep-navy font-bold text-[8px]">
+            <span className="w-[18px] h-[18px] rounded-full bg-brand-gradient flex items-center justify-center text-deep-navy font-bold text-[8px] flex-shrink-0">
               {contactInitials}
-            </div>
+            </span>
             <span className="truncate">{contactName}</span>
           </>
         ) : (
-          <span className="font-mono text-[9px] tracking-[0.04em] uppercase text-text-muted">
-            No contact
-          </span>
+          <span className="font-mono text-[9px] tracking-[0.04em] uppercase text-text-muted">No contact</span>
         )}
-        <div className="ml-auto flex items-center gap-1.5">
+        <span className="ml-auto flex items-center gap-1 flex-shrink-0">
           <span
-            className="font-mono text-[9px] px-1.5 py-0.5 rounded-md bg-accent/10 text-accent"
-            title={`Deal owner: ${ownerName}`}
+            className="font-mono text-[9.5px] px-1.5 py-0.5 rounded-md bg-accent/10 text-accent"
+            title={`Deal owner: ${owner}`}
           >
-            {ownerInitials}
+            {initialsOf(owner.split(' ')[0], owner.split(' ')[1])}
           </span>
-          {daysInStage != null && (
-            <span
-              className={cn(
-                'font-mono text-[9px] px-1.5 py-0.5 rounded-md',
-                daysInStage > 14
-                  ? 'bg-priority-high/15 text-priority-high'
-                  : daysInStage > 7
-                  ? 'bg-priority-medium/15 text-priority-medium'
-                  : 'bg-white/[0.04] text-text-muted',
-              )}
-              title="Days in current stage"
-            >
-              {daysInStage}d
-            </span>
-          )}
-        </div>
+          {daysInStage != null && <DaysChip days={daysInStage} />}
+        </span>
       </div>
     </div>
+  );
+}
+
+export function DaysChip({ days }: { days: number }) {
+  return (
+    <span
+      className={cn(
+        'font-mono text-[9.5px] px-1.5 py-0.5 rounded-md',
+        days > 14
+          ? 'bg-priority-high/15 text-priority-high'
+          : days > 7
+          ? 'bg-priority-medium/15 text-priority-medium'
+          : 'bg-white/[0.04] text-text-muted',
+      )}
+      title="Days in current stage"
+    >
+      {days}d
+    </span>
   );
 }

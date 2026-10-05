@@ -1,12 +1,22 @@
 'use client';
 
 import { useState } from 'react';
-import { type Deal, type Contact, type Company, type Profile, annualisedValue, fmtCurrencyFull, daysBetween } from '@/types';
+import {
+  type Deal,
+  type Contact,
+  type Company,
+  type Profile,
+  LOSS_REASONS,
+  annualisedValue,
+  fmtCurrencyFull,
+  initialsOf,
+} from '@/types';
 import { createClient } from '@/lib/supabase/client';
-import { toast } from '@/components/ui/Toaster';
-import Toaster from '@/components/ui/Toaster';
-import { cn } from '@/lib/utils';
+import Toaster, { toast } from '@/components/ui/Toaster';
+import Modal from '@/components/ui/Modal';
+import { Button, Label, Select } from '@/components/ui/Form';
 import DeleteDealModal from '@/components/forms/DeleteDealModal';
+import { cn } from '@/lib/utils';
 
 interface Props {
   initialDeals: Deal[];
@@ -15,39 +25,40 @@ interface Props {
   profile: Profile;
 }
 
-const REASON_COLORS: Record<string, string> = {
-  'Price': 'bg-red-500/15 text-red-400',
-  'Timing': 'bg-yellow-500/15 text-yellow-400',
-  'Went with competitor': 'bg-orange-500/15 text-orange-400',
-  'No decision': 'bg-slate-500/15 text-slate-400',
-  'Not a fit': 'bg-purple-500/15 text-purple-400',
-  'Other': 'bg-blue-500/15 text-blue-400',
-};
+const COLUMNS = '2fr 1.4fr 1.6fr 120px 140px 80px 150px';
+
+function fmtDate(iso: string | null): string {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  const sameYear = d.getFullYear() === new Date().getFullYear();
+  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', ...(sameYear ? {} : { year: '2-digit' }) });
+}
 
 export default function LostView({ initialDeals, contacts, companies, profile }: Props) {
   const [deals, setDeals] = useState<Deal[]>(initialDeals);
   const [reopening, setReopening] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<Deal | null>(null);
-  const isDirector = !!profile?.is_director;
+  const [addingReason, setAddingReason] = useState<Deal | null>(null);
   const [filterReason, setFilterReason] = useState<string>('all');
-
+  const isDirector = !!profile?.is_director;
   const currency = profile?.default_currency || 'ZAR';
   const supabase = createClient();
 
   const contactMap = new Map(contacts.map((c) => [c.id, c]));
   const companyMap = new Map(companies.map((c) => [c.id, c]));
-
-  const allReasons = Array.from(new Set(deals.map((d) => d.loss_reason).filter(Boolean)));
-
-  const filtered = filterReason === 'all'
-    ? deals
-    : deals.filter((d) => d.loss_reason === filterReason);
-
+  const allReasons = Array.from(new Set(deals.map((d) => d.loss_reason).filter(Boolean))) as string[];
+  const filtered =
+    filterReason === 'all'
+      ? deals
+      : filterReason === 'none'
+      ? deals.filter((d) => !d.loss_reason)
+      : deals.filter((d) => d.loss_reason === filterReason);
   const totalLostValue = deals.reduce((s, d) => s + annualisedValue(d), 0);
+  const missingReason = deals.filter((d) => !d.loss_reason).length;
 
   async function handleReopen(deal: Deal) {
     setReopening(deal.id);
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from('deals')
       .update({
         deal_stage: 'inbox',
@@ -55,16 +66,12 @@ export default function LostView({ initialDeals, contacts, companies, profile }:
         actual_close_date: null,
         last_activity_at: new Date().toISOString(),
       })
-      .eq('id', deal.id)
-      .select()
-      .single();
-
+      .eq('id', deal.id);
     if (error) {
       toast('Failed to reopen deal', 'error');
       setReopening(null);
       return;
     }
-
     await supabase.from('activities').insert({
       owner_id: deal.owner_id,
       deal_id: deal.id,
@@ -74,7 +81,6 @@ export default function LostView({ initialDeals, contacts, companies, profile }:
       title: 'Deal reopened',
       body: 'Moved back to Inbox from Lost',
     });
-
     setDeals((prev) => prev.filter((d) => d.id !== deal.id));
     toast(`${deal.name.slice(0, 30)} moved back to Inbox`, 'success');
     setReopening(null);
@@ -93,34 +99,55 @@ export default function LostView({ initialDeals, contacts, companies, profile }:
           }}
         />
       )}
-      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-3 sm:px-5 py-3 border-b border-white/[0.06]">
-        <div className="flex items-center gap-3">
-          <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight">Lost</h1>
-          <span className="text-xs text-text-muted">Closed lost deals</span>
+      {addingReason && (
+        <AddReasonModal
+          deal={addingReason}
+          onClose={() => setAddingReason(null)}
+          onSaved={(d) => {
+            setDeals((prev) => prev.map((x) => (x.id === d.id ? d : x)));
+            setAddingReason(null);
+          }}
+        />
+      )}
+
+      {/* HEADER: title · metrics · filter */}
+      <div className="px-3 sm:px-6 py-3.5 border-b border-white/[0.06] flex flex-wrap items-center gap-x-7 gap-y-3">
+        <div>
+          <h1 className="text-2xl font-extrabold tracking-tight leading-none">Lost</h1>
+          <div className="text-[11.5px] text-text-muted mt-1">Closed lost deals</div>
         </div>
-        <div className="flex items-center gap-3">
-          <span className="text-xs text-text-muted">
-            {deals.length} deal{deals.length !== 1 ? 's' : ''} · {fmtCurrencyFull(totalLostValue, currency)} total value
-          </span>
-          {allReasons.length > 0 && (
-            <select
-              value={filterReason}
-              onChange={(e) => setFilterReason(e.target.value)}
-              className="text-xs bg-slate-light border border-white/[0.08] rounded-lg px-3 py-1.5 text-text-primary focus:outline-none focus:ring-1 focus:ring-accent/50"
-            >
-              <option value="all">All reasons</option>
-              {allReasons.map((r) => (
-                <option key={r} value={r!}>{r}</option>
-              ))}
-            </select>
-          )}
+        <div className="flex">
+          <HeaderMetric label="Deals" value={String(deals.length)} />
+          <HeaderMetric label="Total value" value={fmtCurrencyFull(totalLostValue, currency)} />
         </div>
+        {deals.length > 0 && (
+          <select
+            value={filterReason}
+            onChange={(e) => setFilterReason(e.target.value)}
+            className="ml-auto text-xs bg-deep-navy border border-white/10 rounded-full px-3 py-1.5 text-text-primary focus:outline-none focus:ring-1 focus:ring-accent/50"
+            aria-label="Filter by loss reason"
+          >
+            <option value="all">All reasons</option>
+            {allReasons.map((r) => (
+              <option key={r} value={r}>
+                {r}
+              </option>
+            ))}
+            {missingReason > 0 && <option value="none">No reason recorded</option>}
+          </select>
+        )}
       </div>
 
-      <div className="flex-1 overflow-auto p-3 sm:p-5">
+      <div className="flex-1 overflow-auto px-3 sm:px-6 pt-4 pb-5 flex flex-col gap-3">
+        {missingReason > 0 && (
+          <div className="flex items-center gap-2.5 px-3.5 py-2.5 bg-priority-medium/[0.08] border border-priority-medium/25 rounded-[10px] text-[12.5px] text-text-sub">
+            <span className="w-2 h-2 rounded-full bg-priority-medium flex-shrink-0" />
+            No loss reason recorded on {missingReason} of {deals.length} deals.
+          </div>
+        )}
+
         {filtered.length === 0 ? (
           <div className="text-center py-20 text-text-muted">
-            <div className="text-5xl mb-4">🎯</div>
             <p className="text-2xl font-extrabold text-text-primary mb-2">
               {deals.length === 0 ? 'No lost deals' : 'No deals match this filter'}
             </p>
@@ -131,103 +158,161 @@ export default function LostView({ initialDeals, contacts, companies, profile }:
             </p>
           </div>
         ) : (
-          <>
-            {/* Summary cards by reason */}
-            {allReasons.length > 1 && filterReason === 'all' && (
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
-                {allReasons.map((reason) => {
-                  const count = deals.filter((d) => d.loss_reason === reason).length;
-                  const pct = Math.round((count / deals.length) * 100);
-                  return (
-                    <button
-                      key={reason}
-                      onClick={() => setFilterReason(reason!)}
-                      className="bg-slate-light border border-white/[0.06] rounded-xl p-3 text-left hover:border-white/[0.12] transition-colors"
-                    >
-                      <div className="text-xl font-extrabold tabular-nums">{count}</div>
-                      <div className="text-[10px] text-text-muted mt-0.5">{pct}%</div>
-                      <div className={cn('text-[10px] font-medium mt-1.5 px-1.5 py-0.5 rounded-full inline-block', REASON_COLORS[reason!] || 'bg-slate-500/15 text-slate-400')}>
-                        {reason}
-                      </div>
-                    </button>
-                  );
-                })}
+          <div className="bg-navy border border-white/[0.06] rounded-xl overflow-x-auto">
+            <div className="min-w-[940px]" role="table">
+              <div
+                role="row"
+                className="grid gap-3 px-4 py-2.5 border-b border-white/[0.06] font-mono text-[9px] font-semibold tracking-[0.15em] uppercase text-text-muted"
+                style={{ gridTemplateColumns: COLUMNS }}
+              >
+                <span>Deal</span>
+                <span>Company</span>
+                <span>Contact</span>
+                <span className="text-right">Value</span>
+                <span>Loss reason</span>
+                <span>Lost</span>
+                <span />
               </div>
-            )}
-
-            <div className="bg-slate-light border border-white/[0.06] rounded-2xl overflow-x-auto">
-              <table className="w-full min-w-[720px] text-sm">
-                <thead>
-                  <tr className="text-left text-xs font-mono uppercase tracking-wider text-text-muted border-b border-white/[0.06]">
-                    <th className="py-3 px-4">Deal</th>
-                    <th className="py-3 px-4">Company</th>
-                    <th className="py-3 px-4">Contact</th>
-                    <th className="py-3 px-4">Value</th>
-                    <th className="py-3 px-4">Loss Reason</th>
-                    <th className="py-3 px-4">Lost</th>
-                    <th className="py-3 px-4"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filtered.map((deal) => {
-                    const contact = contactMap.get(deal.primary_contact_id || '');
-                    const company = companyMap.get(deal.company_id || '');
-                    const daysAgo = deal.actual_close_date ? daysBetween(deal.actual_close_date) : null;
-                    const value = annualisedValue(deal);
-
-                    return (
-                      <tr key={deal.id} className="border-b border-white/[0.04] hover:bg-white/[0.02] transition-colors">
-                        <td className="py-3 px-4">
-                          <div className="font-semibold text-text-primary">{deal.name}</div>
-                          {deal.source && (
-                            <div className="text-[10px] text-text-muted mt-0.5">{deal.source}</div>
+              {filtered.map((deal) => {
+                const contact = contactMap.get(deal.primary_contact_id || '');
+                const company = companyMap.get(deal.company_id || '');
+                const contactName = contact
+                  ? `${contact.first_name} ${contact.last_name ?? ''}`.trim()
+                  : [deal.lead_first_name, deal.lead_last_name].filter(Boolean).join(' ');
+                const value = annualisedValue(deal);
+                return (
+                  <div
+                    key={deal.id}
+                    role="row"
+                    className="grid gap-3 items-center px-4 py-3 border-b border-white/[0.04] last:border-b-0 hover:bg-slate transition-colors text-[13px]"
+                    style={{ gridTemplateColumns: COLUMNS }}
+                  >
+                    <div className="min-w-0">
+                      <div className="font-semibold text-text-primary truncate">{deal.name}</div>
+                      {deal.source && (
+                        <div className="font-mono text-[9.5px] uppercase tracking-[0.08em] text-text-muted mt-0.5">
+                          {deal.source}
+                        </div>
+                      )}
+                    </div>
+                    <div className="text-text-sub truncate">{company?.name || deal.lead_company_name || '—'}</div>
+                    <div className="flex items-center gap-2 min-w-0 text-text-sub">
+                      {contactName ? (
+                        <>
+                          <span className="w-5 h-5 rounded-full bg-priority-high/20 text-red-400 flex items-center justify-center text-[8px] font-bold flex-shrink-0">
+                            {contact
+                              ? initialsOf(contact.first_name, contact.last_name)
+                              : initialsOf(deal.lead_first_name, deal.lead_last_name)}
+                          </span>
+                          <span className="truncate">{contactName}</span>
+                        </>
+                      ) : (
+                        '—'
+                      )}
+                    </div>
+                    <div className="text-right font-bold tabular-nums">
+                      {value > 0 ? fmtCurrencyFull(value, deal.currency || currency) : '—'}
+                    </div>
+                    <div>
+                      {deal.loss_reason ? (
+                        <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-priority-high/15 text-red-400">
+                          {deal.loss_reason}
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => setAddingReason(deal)}
+                          className="text-[12px] font-medium text-accent hover:text-accent/80"
+                        >
+                          + Add reason
+                        </button>
+                      )}
+                    </div>
+                    <div className="text-text-muted text-xs tabular-nums">{fmtDate(deal.actual_close_date)}</div>
+                    <div className="flex justify-end gap-1.5">
+                      <button
+                        onClick={() => handleReopen(deal)}
+                        disabled={reopening === deal.id}
+                        className="text-xs font-medium px-3 py-1 rounded-full bg-accent/[0.08] border border-accent/30 text-accent hover:bg-accent/15 disabled:opacity-40 transition-colors"
+                      >
+                        {reopening === deal.id ? 'Reopening…' : 'Reopen'}
+                      </button>
+                      {isDirector && (
+                        <button
+                          onClick={() => setDeleting(deal)}
+                          className={cn(
+                            'text-xs font-medium px-3 py-1 rounded-full transition-colors',
+                            'bg-priority-high/15 border border-priority-high/30 text-priority-high hover:bg-priority-high/25',
                           )}
-                        </td>
-                        <td className="py-3 px-4 text-text-sub">
-                          {company?.name || '—'}
-                        </td>
-                        <td className="py-3 px-4 text-text-sub">
-                          {contact ? `${contact.first_name} ${contact.last_name}` : '—'}
-                        </td>
-                        <td className="py-3 px-4 tabular-nums font-medium">
-                          {value > 0 ? fmtCurrencyFull(value, currency) : '—'}
-                        </td>
-                        <td className="py-3 px-4">
-                          {deal.loss_reason ? (
-                            <span className={cn('text-[10px] font-medium px-2 py-1 rounded-full', REASON_COLORS[deal.loss_reason] || 'bg-slate-500/15 text-slate-400')}>
-                              {deal.loss_reason}
-                            </span>
-                          ) : '—'}
-                        </td>
-                        <td className="py-3 px-4 text-text-muted text-xs tabular-nums">
-                          {daysAgo !== null ? `${daysAgo}d ago` : '—'}
-                        </td>
-                        <td className="py-3 px-4 text-right">
-                          <button
-                            onClick={() => handleReopen(deal)}
-                            disabled={reopening === deal.id}
-                            className="text-xs font-medium text-accent hover:text-accent/80 disabled:opacity-40 disabled:cursor-not-allowed transition-colors px-3 py-1.5 rounded-lg border border-accent/20 hover:border-accent/40"
-                          >
-                            {reopening === deal.id ? 'Reopening…' : 'Reopen'}
-                          </button>
-                          {isDirector && (
-                            <button
-                              onClick={() => setDeleting(deal)}
-                              className="ml-2 text-xs font-medium text-priority-high hover:text-priority-high/80 transition-colors px-3 py-1.5 rounded-lg border border-priority-high/20 hover:border-priority-high/40"
-                            >
-                              Delete
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                        >
+                          Delete
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-          </>
+          </div>
         )}
       </div>
     </>
+  );
+}
+
+function HeaderMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="px-6 border-l border-white/[0.06] first:pl-0 first:border-l-0 sm:first:pl-6 sm:first:border-l">
+      <div className="font-mono text-[9px] font-semibold tracking-[0.15em] text-text-muted mb-1 uppercase">{label}</div>
+      <div className="text-[20px] font-extrabold tracking-tight leading-none tabular-nums">{value}</div>
+    </div>
+  );
+}
+
+function AddReasonModal({ deal, onClose, onSaved }: { deal: Deal; onClose: () => void; onSaved: (d: Deal) => void }) {
+  const [reason, setReason] = useState<string>(LOSS_REASONS[0]);
+  const [saving, setSaving] = useState(false);
+
+  async function save() {
+    setSaving(true);
+    const { data, error } = await createClient()
+      .from('deals')
+      .update({ loss_reason: reason })
+      .eq('id', deal.id)
+      .select()
+      .single();
+    setSaving(false);
+    if (error) {
+      toast('Could not save reason', 'error');
+      return;
+    }
+    toast('Loss reason saved', 'success');
+    onSaved(data as Deal);
+  }
+
+  return (
+    <Modal
+      title="Add loss reason"
+      subtitle={deal.name}
+      onClose={onClose}
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button variant="primary" onClick={save} disabled={saving}>
+            {saving ? 'Saving…' : 'Save reason'}
+          </Button>
+        </>
+      }
+    >
+      <Label required>Loss reason</Label>
+      <Select value={reason} onChange={(e) => setReason(e.target.value)}>
+        {LOSS_REASONS.map((r) => (
+          <option key={r} value={r}>
+            {r}
+          </option>
+        ))}
+      </Select>
+    </Modal>
   );
 }
