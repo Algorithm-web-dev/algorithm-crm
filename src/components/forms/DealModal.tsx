@@ -8,10 +8,13 @@ import {
   type DealStageId,
   type Priority,
   type Currency,
+  type Profile,
   DEAL_STAGES,
   DEAL_SOURCES,
   CURRENCIES,
+  LOSS_REASONS,
   isEarlyStage,
+  profileName,
 } from '@/types';
 import { createClient } from '@/lib/supabase/client';
 import Modal from '@/components/ui/Modal';
@@ -22,12 +25,27 @@ interface Props {
   deal: Deal | null;
   contacts: Contact[];
   companies: Company[];
+  profiles: Profile[];
+  currentUserId: string;
   defaultCurrency: Currency;
   onClose: () => void;
   onSaved: (deal: Deal) => void;
+  onCompanyCreated: (company: Company) => void;
 }
 
-export default function DealModal({ deal, contacts, companies, defaultCurrency, onClose, onSaved }: Props) {
+const NEW_COMPANY = '__new__';
+
+export default function DealModal({
+  deal,
+  contacts,
+  companies,
+  profiles,
+  currentUserId,
+  defaultCurrency,
+  onClose,
+  onSaved,
+  onCompanyCreated,
+}: Props) {
   const isEdit = !!deal;
 
   // Form state
@@ -36,6 +54,8 @@ export default function DealModal({ deal, contacts, companies, defaultCurrency, 
   const [source, setSource] = useState(deal?.source || 'Manual');
   const [priority, setPriority] = useState<Priority>(deal?.priority || 'Medium');
   const [notes, setNotes] = useState(deal?.notes || '');
+  const [dealOwnerId, setDealOwnerId] = useState(deal?.deal_owner_id || currentUserId);
+  const [lossReason, setLossReason] = useState<string>(deal?.loss_reason || LOSS_REASONS[0]);
 
   // Early-stage fields
   const [leadFirstName, setLeadFirstName] = useState(deal?.lead_first_name || '');
@@ -45,6 +65,7 @@ export default function DealModal({ deal, contacts, companies, defaultCurrency, 
 
   // Later-stage fields
   const [companyId, setCompanyId] = useState(deal?.company_id || '');
+  const [newCompanyName, setNewCompanyName] = useState(deal?.lead_company_name || deal?.name || '');
   const [contactId, setContactId] = useState(deal?.primary_contact_id || '');
   const [monthlyValue, setMonthlyValue] = useState(String(deal?.monthly_value || 0));
   const [oneOffValue, setOneOffValue] = useState(String(deal?.one_off_value || 0));
@@ -54,10 +75,24 @@ export default function DealModal({ deal, contacts, companies, defaultCurrency, 
   const [loading, setLoading] = useState(false);
 
   const early = isEarlyStage(stage);
+  const isLost = stage === 'lost';
+  const stageChanged = isEdit && deal.deal_stage !== stage;
+  // A lead that never got a company keeps its prospect fields when marked Lost —
+  // closing out a lead must not require (or wipe) company/contact data.
+  const leadLayout = early || (isLost && !deal?.company_id);
+  const companyRequired = !leadLayout && !isLost;
 
   async function handleSave() {
     if (!name.trim()) {
       toast('Deal name required', 'error');
+      return;
+    }
+    if (!dealOwnerId) {
+      toast('Deal owner required', 'error');
+      return;
+    }
+    if (companyId === NEW_COMPANY && !newCompanyName.trim()) {
+      toast('Enter a name for the new company', 'error');
       return;
     }
 
@@ -78,25 +113,60 @@ export default function DealModal({ deal, contacts, companies, defaultCurrency, 
       source,
       priority,
       notes,
+      deal_owner_id: dealOwnerId,
       last_activity_at: new Date().toISOString(),
     };
 
-    if (early) {
+    if (isLost) {
+      patch.loss_reason = lossReason;
+      if (stageChanged || !deal?.actual_close_date) {
+        patch.actual_close_date = new Date().toISOString().split('T')[0];
+      }
+    } else if (stage === 'won') {
+      patch.loss_reason = null;
+      if (stageChanged || !deal?.actual_close_date) {
+        patch.actual_close_date = new Date().toISOString().split('T')[0];
+      }
+    } else if (deal?.deal_stage === 'lost' || deal?.deal_stage === 'won') {
+      // Re-opened from a closed stage
+      patch.loss_reason = null;
+      patch.actual_close_date = null;
+    }
+
+    if (leadLayout) {
       patch.lead_first_name = leadFirstName.trim() || null;
       patch.lead_last_name = leadLastName.trim() || null;
       patch.lead_email = leadEmail.trim() || null;
       patch.lead_company_name = leadCompanyName.trim() || null;
-      patch.monthly_value = 0;
-      patch.one_off_value = 0;
-      patch.company_id = null;
-      patch.primary_contact_id = null;
+      if (early) {
+        patch.monthly_value = 0;
+        patch.one_off_value = 0;
+        patch.company_id = null;
+        patch.primary_contact_id = null;
+      }
     } else {
-      if (!companyId) {
-        toast('Company required for this stage', 'error');
+      let resolvedCompanyId = companyId;
+      if (companyId === NEW_COMPANY) {
+        const { data, error } = await supabase
+          .from('companies')
+          .insert({ name: newCompanyName.trim(), owner_id: user.id })
+          .select()
+          .single();
+        if (error) {
+          toast(error.message || 'Company create failed', 'error');
+          setLoading(false);
+          return;
+        }
+        resolvedCompanyId = data.id;
+        setCompanyId(data.id);
+        onCompanyCreated(data as Company);
+      }
+      if (companyRequired && !resolvedCompanyId) {
+        toast('Company required for this stage — pick one or create a new one', 'error');
         setLoading(false);
         return;
       }
-      patch.company_id = companyId;
+      patch.company_id = resolvedCompanyId || null;
       patch.primary_contact_id = contactId || null;
       patch.monthly_value = parseFloat(monthlyValue) || 0;
       patch.one_off_value = parseFloat(oneOffValue) || 0;
@@ -118,11 +188,24 @@ export default function DealModal({ deal, contacts, companies, defaultCurrency, 
         .select()
         .single();
       if (error) {
-        toast('Save failed', 'error');
+        toast(error.message || 'Save failed', 'error');
         setLoading(false);
         return;
       }
       saved = data as Deal;
+
+      if (stageChanged) {
+        const stageName = DEAL_STAGES.find((s) => s.id === stage)?.name;
+        await supabase.from('activities').insert({
+          owner_id: user.id,
+          deal_id: saved.id,
+          company_id: saved.company_id,
+          contact_id: saved.primary_contact_id,
+          type: 'stage',
+          title: isLost ? `Deal lost — ${lossReason}` : `Stage → ${stageName}`,
+          body: `Moved from ${DEAL_STAGES.find((s) => s.id === deal.deal_stage)?.name} (via Edit Deal)`,
+        });
+      }
     } else {
       patch.owner_id = user.id;
       const { data, error } = await supabase.from('deals').insert(patch).select().single();
@@ -188,6 +271,34 @@ export default function DealModal({ deal, contacts, companies, defaultCurrency, 
         </div>
       </div>
 
+      <div className="grid grid-cols-2 gap-3 mb-4">
+        <div>
+          <Label required>Deal owner</Label>
+          <Select value={dealOwnerId} onChange={(e) => setDealOwnerId(e.target.value)}>
+            {!dealOwnerId && <option value="">Select owner…</option>}
+            {profiles.map((p) => (
+              <option key={p.id} value={p.id}>
+                {profileName(p)}
+              </option>
+            ))}
+          </Select>
+        </div>
+        {isLost ? (
+          <div>
+            <Label required>Loss reason</Label>
+            <Select value={lossReason} onChange={(e) => setLossReason(e.target.value)}>
+              {LOSS_REASONS.map((r) => (
+                <option key={r} value={r}>
+                  {r}
+                </option>
+              ))}
+            </Select>
+          </div>
+        ) : (
+          <div />
+        )}
+      </div>
+
       <div className="mb-4">
         <Label required>Deal name</Label>
         <Input
@@ -201,10 +312,10 @@ export default function DealModal({ deal, contacts, companies, defaultCurrency, 
         </p>
       </div>
 
-      {early ? (
+      {leadLayout ? (
         <div className="mb-4 pt-4 border-t border-white/[0.06]">
           <h3 className="font-mono text-xs font-semibold text-text-muted mb-3 uppercase tracking-wider">
-            Prospect info (early stage)
+            {early ? 'Prospect info (early stage)' : 'Prospect info'}
           </h3>
           <div className="grid grid-cols-2 gap-3 mb-3">
             <div>
@@ -237,22 +348,33 @@ export default function DealModal({ deal, contacts, companies, defaultCurrency, 
           </h3>
           <div className="grid grid-cols-2 gap-3 mb-3">
             <div>
-              <Label required>Company</Label>
+              <Label required={companyRequired}>Company</Label>
               <Select value={companyId} onChange={(e) => setCompanyId(e.target.value)}>
-                <option value="">Select company…</option>
-                {companies.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
+                <option value="">{companyRequired ? 'Select company…' : 'No company'}</option>
+                <option value={NEW_COMPANY}>+ Create new company…</option>
+                {[...companies]
+                  .sort((a, b) => a.name.localeCompare(b.name))
+                  .map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
               </Select>
+              {companyId === NEW_COMPANY && (
+                <Input
+                  className="mt-2"
+                  value={newCompanyName}
+                  onChange={(e) => setNewCompanyName(e.target.value)}
+                  placeholder="New company name"
+                />
+              )}
             </div>
             <div>
               <Label>Primary contact</Label>
               <Select value={contactId} onChange={(e) => setContactId(e.target.value)}>
                 <option value="">Select contact…</option>
                 {contacts
-                  .filter((c) => !companyId || c.company_id === companyId)
+                  .filter((c) => !companyId || companyId === NEW_COMPANY || c.company_id === companyId)
                   .map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.first_name} {c.last_name}

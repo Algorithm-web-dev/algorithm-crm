@@ -1,19 +1,20 @@
 'use client';
 
 import { useDraggable } from '@dnd-kit/core';
-import type { Deal, Contact, Company } from '@/types';
-import { annualisedValue, fmtCurrency, isEarlyStage, daysBetween, initialsOf } from '@/types';
+import type { Deal, Contact, Company, Profile } from '@/types';
+import { annualisedValue, fmtCurrency, isEarlyStage, daysBetween, initialsOf, profileName } from '@/types';
 import { cn } from '@/lib/utils';
 
 interface Props {
   deal: Deal;
   contacts: Contact[];
   companies: Company[];
+  profiles: Profile[];
   onClick?: () => void;
   dragging?: boolean;
 }
 
-export default function DealCard({ deal, contacts, companies, onClick, dragging }: Props) {
+export default function DealCard({ deal, contacts, companies, profiles, onClick, dragging }: Props) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: deal.id });
 
   const company = deal.company_id ? companies.find((c) => c.id === deal.company_id) : null;
@@ -29,6 +30,9 @@ export default function DealCard({ deal, contacts, companies, onClick, dragging 
     : deal.lead_first_name
     ? initialsOf(deal.lead_first_name, deal.lead_last_name)
     : null;
+
+  const ownerName = profileName(profiles.find((p) => p.id === deal.deal_owner_id));
+  const ownerInitials = initialsOf(ownerName.split(' ')[0], ownerName.split(' ')[1]);
 
   const early = isEarlyStage(deal.deal_stage);
   const annual = annualisedValue(deal);
@@ -102,6 +106,12 @@ export default function DealCard({ deal, contacts, companies, onClick, dragging 
           </span>
         )}
         <div className="ml-auto flex items-center gap-1.5">
+          <span
+            className="font-mono text-[9px] px-1.5 py-0.5 rounded-md bg-accent/10 text-accent"
+            title={`Deal owner: ${ownerName}`}
+          >
+            {ownerInitials}
+          </span>
           {daysInStage != null && (
             <span
               className={cn(

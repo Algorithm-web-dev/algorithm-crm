@@ -1,7 +1,9 @@
 // ============================================================================
 //  Domain types for Algorithm CRM
-//  Mirrors the Postgres schema in supabase/migrations/001_initial_schema.sql
+//  Mirrors the Postgres schema in supabase/migrations/
 // ============================================================================
+
+import { STAGE_PROBABILITIES as P } from '@/config/stageProbabilities';
 
 export type DealStageId =
   | 'inbox'
@@ -25,15 +27,16 @@ export interface DealStage {
   early: boolean;
 }
 
+// Probabilities come from /config/stage-probabilities.json — don't hard-code them here.
 export const DEAL_STAGES: DealStage[] = [
-  { id: 'inbox',       name: 'Inbox',       color: '#8a94b0', prob: 5,   early: true  },
-  { id: 'qualifying',  name: 'Qualifying',  color: '#4f8cff', prob: 15,  early: true  },
-  { id: 'discovery',   name: 'Discovery',   color: '#3b82f6', prob: 25,  early: false },
-  { id: 'proposal',    name: 'Proposal',    color: '#8a5cff', prob: 45,  early: false },
-  { id: 'negotiation', name: 'Negotiation', color: '#a855f7', prob: 65,  early: false },
-  { id: 'verbal',      name: 'Verbal',      color: '#db2777', prob: 85,  early: false },
-  { id: 'won',         name: 'Won',         color: '#00e0a0', prob: 100, early: false },
-  { id: 'lost',        name: 'Lost',        color: '#c1272d', prob: 0,   early: false },
+  { id: 'inbox',       name: 'Inbox',       color: '#8a94b0', prob: P.inbox,       early: true  },
+  { id: 'qualifying',  name: 'Qualifying',  color: '#4f8cff', prob: P.qualifying,  early: true  },
+  { id: 'discovery',   name: 'Discovery',   color: '#3b82f6', prob: P.discovery,   early: false },
+  { id: 'proposal',    name: 'Proposal',    color: '#8a5cff', prob: P.proposal,    early: false },
+  { id: 'negotiation', name: 'Negotiation', color: '#a855f7', prob: P.negotiation, early: false },
+  { id: 'verbal',      name: 'Verbal',      color: '#db2777', prob: P.verbal,      early: false },
+  { id: 'won',         name: 'Won',         color: '#00e0a0', prob: P.won,         early: false },
+  { id: 'lost',        name: 'Lost',        color: '#c1272d', prob: P.lost,        early: false },
 ];
 
 export const DEAL_SOURCES = [
@@ -107,7 +110,8 @@ export interface Contact {
 
 export interface Deal {
   id: string;
-  owner_id: string;
+  owner_id: string; // who created the record
+  deal_owner_id: string; // who is accountable for the deal (profiles.id)
   name: string;
   deal_stage: DealStageId;
   priority: Priority;
@@ -149,25 +153,24 @@ export interface Activity {
   created_at: string;
 }
 
-export interface AlertRule {
-  id: string;
-  owner_id: string;
+export interface StageAlertRule {
   deal_stage: DealStageId;
-  days_threshold: number;
-  enabled: boolean;
-  created_at: string;
+  stall_days: number | null; // null = no stalled alert for this stage
+  notify_on_entry: boolean;
+  updated_by: string | null;
+  updated_at: string;
 }
 
-export interface AlertFiring {
+export interface Notification {
   id: string;
-  owner_id: string;
-  deal_id: string;
-  rule_id: string;
-  deal_stage: DealStageId;
-  fired_at: string;
-  snoozed_until: string | null;
-  dismissed_at: string | null;
-  stage_entered_at: string;
+  user_id: string;
+  deal_id: string | null;
+  kind: 'stalled' | 'stage_entered';
+  title: string;
+  body: string | null;
+  created_at: string;
+  read_at: string | null;
+  emailed_at: string | null;
 }
 
 // ============================================================================
@@ -224,6 +227,11 @@ export function relTime(iso: string | null | undefined): string {
   if (d < 30) return `${Math.floor(d / 7)}w ago`;
   if (d < 365) return `${Math.floor(d / 30)}mo ago`;
   return `${Math.floor(d / 365)}y ago`;
+}
+
+export function profileName(p: Pick<Profile, 'full_name' | 'email'> | null | undefined): string {
+  if (!p) return 'Unassigned';
+  return p.full_name || p.email.split('@')[0];
 }
 
 export function initialsOf(first: string | null | undefined, last: string | null | undefined): string {

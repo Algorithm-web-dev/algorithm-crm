@@ -1,0 +1,16 @@
+{
+  "_readme": "Close probability (%) for each deal stage. Used by the Weighted pipeline metric, the deal export and alerts. To change a value: edit the number, commit to main, and Vercel redeploys automatically (~2 min). Every stage must be listed and each value must be a whole number from 0 to 100. Update lastReviewed/reviewedBy when you do.",
+  "status": "DRAFT - carried over from the original hard-coded values, awaiting sign-off from Jamie / Simon",
+  "lastReviewed": null,
+  "reviewedBy": null,
+  "probabilities": {
+    "inbox": 5,
+    "qualifying": 15,
+    "discovery": 25,
+    "proposal": 45,
+    "negotiation": 65,
+    "verbal": 85,
+    "won": 100,
+    "lost": 0
+  }
+}

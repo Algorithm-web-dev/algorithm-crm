@@ -1,7 +1,7 @@
 'use client';
 
 import { useDroppable } from '@dnd-kit/core';
-import type { DealStage, Deal, Contact, Company } from '@/types';
+import type { DealStage, Deal, Contact, Company, Profile } from '@/types';
 import { annualisedValue, fmtCurrency } from '@/types';
 import DealCard from './DealCard';
 import { cn } from '@/lib/utils';
@@ -11,10 +11,11 @@ interface Props {
   deals: Deal[];
   contacts: Contact[];
   companies: Company[];
+  profiles: Profile[];
   onCardClick: (d: Deal) => void;
 }
 
-export default function KanbanColumn({ stage, deals, contacts, companies, onCardClick }: Props) {
+export default function KanbanColumn({ stage, deals, contacts, companies, profiles, onCardClick }: Props) {
   const { setNodeRef, isOver } = useDroppable({ id: stage.id });
 
   const total = deals.reduce((s, d) => s + annualisedValue(d), 0);
@@ -52,6 +53,7 @@ export default function KanbanColumn({ stage, deals, contacts, companies, onCard
             deal={deal}
             contacts={contacts}
             companies={companies}
+            profiles={profiles}
             onClick={() => onCardClick(deal)}
           />
         ))}

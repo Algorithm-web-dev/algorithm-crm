@@ -9,6 +9,7 @@ import { initialsOf } from '@/types';
 interface SidebarProps {
   userName: string;
   userEmail: string;
+  unreadCount: number;
 }
 
 const NAV = [
@@ -17,6 +18,7 @@ const NAV = [
     items: [
       { href: '/deals', name: 'Deals', icon: KanbanIcon },
       { href: '/lost', name: 'Lost', icon: LostIcon },
+      { href: '/notifications', name: 'Notifications', icon: BellIcon },
     ],
   },
   {
@@ -35,7 +37,7 @@ const NAV = [
   },
 ];
 
-export default function Sidebar({ userName, userEmail }: SidebarProps) {
+export default function Sidebar({ userName, userEmail, unreadCount }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
 
@@ -80,6 +82,11 @@ export default function Sidebar({ userName, userEmail }: SidebarProps) {
               >
                 <Icon className={cn('w-3.5 h-3.5', active ? 'text-accent' : 'opacity-70')} />
                 <span>{item.name}</span>
+                {item.href === '/notifications' && unreadCount > 0 && (
+                  <span className="ml-auto font-mono text-[9px] font-semibold bg-accent text-deep-navy px-1.5 py-0.5 rounded-full">
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </span>
+                )}
               </Link>
             );
           })}
@@ -152,6 +159,14 @@ function SignOutIcon({ className }: { className?: string }) {
       <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
       <polyline points="16 17 21 12 16 7" />
       <line x1="21" y1="12" x2="9" y2="12" />
+    </svg>
+  );
+}
+function BellIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+      <path d="M13.73 21a2 2 0 0 1-3.46 0" />
     </svg>
   );
 }

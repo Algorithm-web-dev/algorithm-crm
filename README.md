@@ -7,8 +7,10 @@ A performance-tuned CRM for digital agencies. Built with Next.js 14, Supabase, a
 - Email + password auth (Supabase Auth)
 - Contacts + Companies (auto-created when deals are promoted)
 - Activity timeline (notes, stage changes)
-- Configurable stalled-deal alert rules (per-stage, per-user)
-- Daily cron job that processes alerts (Phase 3 will plug in Gmail sending)
+- Deal owner on every deal (a real user, reassignable)
+- Team-wide stage alerts (stalled-for-N-days and on-entry), sent to all users with the deal owner named — in-app Notifications, optional daily email digest
+- Stage close-probabilities in `config/stage-probabilities.json`
+- CSV / JSON deal export for the finance tracker (`/api/export/deals`)
 - ZAR as default currency with the R symbol
 
 ---
@@ -37,10 +39,10 @@ Open [http://localhost:3000](http://localhost:3000), sign up, and you're in.
    - `URL` → put in `NEXT_PUBLIC_SUPABASE_URL`
    - `anon public` key → put in `NEXT_PUBLIC_SUPABASE_ANON_KEY`
    - `service_role` key → put in `SUPABASE_SERVICE_ROLE_KEY` (keep secret)
-3. **Run the schema migration**:
+3. **Run the schema migrations** in order:
    - Open `SQL Editor` in the Supabase dashboard
-   - Copy the entire contents of `supabase/migrations/001_initial_schema.sql`
-   - Paste and run
+   - Paste and run each file in `supabase/migrations/` (`001_…`, `002_…`, `003_…`)
+   - Run new migrations *before* deploying the code that needs them
 4. **Configure email auth**:
    - Go to `Authentication → Providers`
    - Make sure Email is enabled
@@ -65,6 +67,7 @@ Open [http://localhost:3000](http://localhost:3000), sign up, and you're in.
    - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
    - `SUPABASE_SERVICE_ROLE_KEY`
    - `CRON_SECRET`
+   - Optional: `EXPORT_API_KEY`, `RESEND_API_KEY`, `ALERT_EMAIL_FROM`, `NEXT_PUBLIC_APP_URL` (see `.env.example`)
 4. **Deploy**. The first build takes ~2 minutes.
 5. **Configure Supabase auth URL** for production:
    - In Supabase: `Authentication → URL Configuration`
@@ -88,7 +91,9 @@ src/
 │   │   ├── settings/       # Profile & preferences
 │   │   └── layout.tsx
 │   ├── (auth)/             # Login & signup
-│   ├── api/cron/process-alerts/  # Daily stalled-deal processor
+│   │   ├── notifications/  # In-app alert inbox
+│   ├── api/cron/process-alerts/  # Daily stalled-deal alerts + email digest
+│   ├── api/export/deals/   # CSV/JSON export for the finance tracker
 │   ├── globals.css         # Algorithm brand tokens
 │   └── layout.tsx
 ├── components/
@@ -102,9 +107,11 @@ src/
 ├── types/                  # Shared TypeScript types + domain helpers
 └── middleware.ts           # Auth guard (redirects unauthenticated → /login)
 
+config/
+└── stage-probabilities.json     # Close probability % per stage
+
 supabase/
-└── migrations/
-    └── 001_initial_schema.sql   # The whole database schema
+└── migrations/                  # Run in order in the Supabase SQL editor
 
 vercel.json                      # Cron configuration
 ```
@@ -113,12 +120,33 @@ vercel.json                      # Cron configuration
 
 ## How the alert system works
 
-In the `automations` page you set, per stage, "alert me when a deal sits here for more than X days".
+Settings live on the **Automations** page and are **team-wide** (table `stage_alert_rules`, one row per stage):
 
-- Vercel Cron hits `/api/cron/process-alerts` once a day at 09:00 UTC.
-- The endpoint loops through every enabled rule, finds deals that have been in the watched stage longer than the threshold, and inserts a row in the `alert_firings` table.
-- The dedupe constraint (`deal_id`, `rule_id`, `stage_entered_at`) ensures only one firing per stage entry — moving the deal to a new stage resets its timer.
-- **In Phase 1, the firing just logs to the Vercel function logs.** Phase 3 plugs in the actual email sending (via your Gmail OAuth connection).
+- **Stalled after N days** — Vercel Cron hits `/api/cron/process-alerts` daily at 09:00 UTC. Every deal that has sat in the stage longer than N days creates a notification for **every user**. `deal_alert_log` makes sure that happens once per stage entry — moving the deal resets its timer.
+- **On entry** — a Postgres trigger (`notify_deal_stage_entry`) notifies every user the moment a deal enters the stage, whichever screen moved it.
+
+Every alert names the deal owner. Alerts appear on the **Notifications** page (unread badge in the sidebar).
+
+**Google Chat:** if a webhook URL is saved in `integration_settings` (see `supabase/migrations/004_google_chat_alerts.sql`), alerts are also posted to the CRM directors' Google Chat space. On-entry alerts post instantly from the trigger via `pg_net`. Stalled alerts post as one batched message from the daily cron. Test the connection from the Automations page.
+
+If `RESEND_API_KEY` and `ALERT_EMAIL_FROM` are set, the daily cron also emails each user a digest of their un-emailed notifications from the last 7 days.
+
+---
+
+## Stage probabilities
+
+`config/stage-probabilities.json` holds the close-probability % for each stage. It feeds the Weighted metric, the export and the Automations page. It is validated at build time — a missing stage or a value outside 0–100 fails the deploy. To change it: edit, update `lastReviewed`/`reviewedBy`, push to main.
+
+---
+
+## Deal export
+
+`GET /api/export/deals` returns every deal as CSV (Excel-ready) with name, stage, owner, value and probability. It is linked from the **Export CSV** button on the Deals page.
+
+- Auth: a signed-in session, or `EXPORT_API_KEY` as `Authorization: Bearer <key>` or `?key=<key>` (for Excel → Data → From Web).
+- `?status=open|won|lost|all` (default `all`), `?format=json`.
+
+See `docs/crm-brief-sept-2026.md` for the full write-up of these features.
 
 ---
 
