@@ -171,8 +171,8 @@ Agreed with Ashlin after go-live:
   update profiles set is_director = true
   where email in ('jamie@algorithm.agency', 'simon@algorithm.agency');
   ```
-- **Deleting a deal alerts everyone**, in-app and in Google Chat: "🗑️ *Deal* was deleted by Jamie · Deal owner: … · Was in: Lost".
-- **Lost alerts include the reason**: "🔴 *Deal* moved to Lost · Deal owner: Ashlin · Reason: Price". Won alerts use 🏆.
+- **Deleting a deal alerts everyone**, in-app and in Google Chat: "*Deal* was deleted by Jamie · Deal owner: … · Was in: Lost".
+- **Lost alerts include the reason**: "*Deal* moved to Lost · Deal owner: Ashlin · Reason: Price". Google Chat messages are plain text, with no emojis (migration 007).
 
 Run `supabase/migrations/006_directors_delete_and_lost_reason.sql` **before** deploying this change, then mark the directors.
 
